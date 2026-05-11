@@ -49,25 +49,17 @@ jobs:
             docker compose up -d --build --remove-orphans
             docker compose exec -T web python manage.py migrate --noinput
             docker compose exec -T web python manage.py check
-            docker compose exec -T web python - <<'PY'
-            import sys
-            import time
-            import urllib.request
-
-            url = "http://127.0.0.1:8000/"
-            req = urllib.request.Request(url, headers={"Host": "localhost"})
-            last_error = None
-
-            for _ in range(30):
-                try:
-                    with urllib.request.urlopen(req, timeout=5) as response:
-                        print(f"Health check OK: {response.status}")
-                        sys.exit(0)
-                except Exception as exc:
-                    last_error = exc
-                    time.sleep(2)
-
-            print(f"Health check failed: {last_error}", file=sys.stderr)
-            sys.exit(1)
-            PY
+            web_container_id="$(docker compose ps -q web)"
+            web_health="starting"
+            for _ in $(seq 1 30); do
+              web_health="$(docker inspect --format '{{.State.Health.Status}}' "$web_container_id")"
+              if [ "$web_health" = "healthy" ]; then
+                break
+              fi
+              sleep 2
+            done
+            if [ "$web_health" != "healthy" ]; then
+              echo "Web container health is $web_health"
+              exit 1
+            fi
             docker compose ps
