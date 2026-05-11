@@ -26,4 +26,4 @@ urlpatterns = [
 	#path('admin/', include('cert.urls')),
 ]
 
-admin.site.site_header = 'LABAUTO'
+admin.site.site_header = 'KASPICERT'
