@@ -1,0 +1,48 @@
+{% load i18n %}
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/jquery/latest/jquery.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<div class="form-group">
+	<i class="fa fa-calendar"></i>&nbsp;
+	<input type="text" name="{{ field_name }}" placeholder="Дата">
+</div>
+
+<script>
+	const queryString = window.location.search;
+	const urlParams = new URLSearchParams(queryString);
+	const createdAt = urlParams.get('created_at');
+
+	let defaultDatePickerConfig = {
+		autoUpdateInput: false,
+		locale: {
+			cancelLabel: 'Отмена',
+        	
+		}
+	}
+
+	if (createdAt) {
+		const created_at_date = createdAt.split(' - ');
+		const created_at_start = new Date(created_at_date[0]);
+		const created_at_end = new Date(created_at_date[1]);
+		defaultDatePickerConfig = {
+			startDate: created_at_start,
+			endDate: created_at_end,
+			locale: {
+				cancelLabel: 'Отмена'
+			}
+		}
+	}
+
+	$('input[name="{{ field_name }}"]').daterangepicker(defaultDatePickerConfig);
+
+	$('input[name="{{ field_name }}"]').on('apply.daterangepicker', function (ev, picker) {
+		$(this).val(picker.startDate.format('MM/DD/YYYY') + ' - ' + picker.endDate.format('MM/DD/YYYY'));
+	});
+
+	$('input[name="{{ field_name }}"]').on('cancel.daterangepicker', function (ev, picker) {
+		$(this).val('');
+	});
+
+</script>

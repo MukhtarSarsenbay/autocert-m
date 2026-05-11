@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Django/local databases
+db.sqlite3
+*.sqlite3
+*.sqlite3-journal
+
+# Runtime uploads and generated documents
+media/
+
+# Local PostgreSQL data from Docker Compose
+postgres_data/
+
+# Logs and local runtime files
+*.log
+*.pid
+*.seed
+
+# Local/import scratch files
+act
+text.xlsx
+imeis.txt
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Docker/local tooling
+docker-compose.override.yml

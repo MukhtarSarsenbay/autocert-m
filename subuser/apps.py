@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class SubuserConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'subuser'
+    verbose_name='Суб. пользователь'

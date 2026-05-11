@@ -1,0 +1,428 @@
+from django.contrib import admin
+from .models import *
+#from import_export.admin import ImportMixin, ExportMixin, ExportActionModelAdmin
+from .resource import ButtonResource, ActusResourse, ActusReportResourse
+from subuser.models import SubUser, Profile
+
+from django.contrib.auth.models import User, Group
+
+from docxtpl import DocxTemplate
+
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+import os
+
+from .utils import convert_to
+
+from datetime import datetime, timedelta
+
+import requests
+from bs4 import BeautifulSoup
+
+from django.utils.html import format_html
+
+from unfold.admin import ModelAdmin
+from unfold.contrib.import_export.forms import ExportForm, ImportForm
+from import_export.admin import ImportExportModelAdmin
+from unfold.contrib.import_export.admin import ExportActionModelAdmin
+
+
+from unfold.contrib.filters.admin import (
+    RangeDateFilter,
+    RangeDateTimeFilter,
+)
+
+from rangefilter.filters import (
+    DateRangeFilterBuilder,
+    DateTimeRangeFilterBuilder,
+    NumericRangeFilterBuilder,
+    DateRangeQuickSelectListFilterBuilder,
+)
+
+from django.utils.translation import gettext_lazy as _
+#from .filters import CreatedAtFilter
+
+month_to_string = {
+	1: "января",
+	2: "февраля",
+	3: "марта",
+	4: "апреля",
+	5: "мая",
+	6: "июня",
+	7: "июля",
+	8: "августа",
+	9: "сентября",
+	10: "октября",
+	11: "ноября",
+	12: "декабря"
+}
+
+class ActusUserFilter(admin.SimpleListFilter):
+	title = "Пользователь"
+	parameter_name = "creator"
+
+	def lookups(self, request, model_admin):
+		if request.user.is_superuser:
+			# users = Actus.objects.values("creator").annotate(count=models.Count('creator'))
+			# buttons = Button.objects.values("user").annotate(count=models.Count('user'))
+			# return [(user['creator'], f"{User.objects.get(id=user['creator']).username} ({user['count']}/)")for user in users]
+
+			actus_users_counts = Actus.objects.values('creator').annotate(count=models.Count('creator'))
+			# Получаем количество записей для каждого пользователя в таблице Button
+			button_users_counts = Button.objects.values('user').annotate(count=models.Count('user'))
+
+			result = []
+			for actus_user_count in actus_users_counts:
+				user_id = actus_user_count['creator']
+				actus_count = actus_user_count['count']
+				button_count = next((item['count'] for item in button_users_counts if item['user'] == user_id), 0)
+				result.append([user_id, f"{SubUser.objects.get(id=user_id).username}:А{actus_count}/К{button_count}/О{button_count-actus_count}"])
+			#print(result)
+			return result
+
+		return []
+
+	def queryset(self, request, queryset):
+		value = self.value()
+		
+		if value:
+			return queryset.filter(creator=value)
+
+		return queryset
+
+class ButtonUserFilter(admin.SimpleListFilter):
+	title = "Пользователь"
+	parameter_name = "user"
+
+	def lookups(self, request, model_admin):
+		if request.user.is_superuser:
+			users = Button.objects.values("user").annotate(count=models.Count('user'))
+			userList = []
+			for user in users:
+				try:
+					userList.append((user['user'], f"{SubUser.objects.get(id=user['user']).username} ({user['count']})"))
+				except:
+					pass
+				
+			return userList # [(user['user'], f"{SubUser.objects.get(id=user['user']).username} ({user['count']})") for user in users]
+		return []
+
+	def queryset(self, request, queryset):
+		value = self.value()
+		
+		if value:
+			return queryset.filter(user=value)
+
+		return queryset
+
+class RegisterFilter(admin.SimpleListFilter):
+	title = "Статус"
+	parameter_name = "user"
+
+	def lookups(self, request, model_admin):
+		return (
+			('empty', _('-')),
+			('registred', _('Регистрация')),
+			('called', _('Прозвон')),
+		)
+
+	def queryset(self, request, queryset):
+		if self.value() == 'empty':
+			return queryset.filter(
+				isRegistred="-", 
+            	isCalled="-"  # Добавьте свои поля, по которым нужно фильтровать
+			)
+		elif self.value() == 'registred':
+			return queryset.filter(
+            	isRegistred__lte=10,
+			)
+		elif self.value() == 'called':
+			return queryset.exclude(
+            	isRegistred=False, 
+            	isCalled=False  # Добавьте свои поля, по которым нужно фильтровать
+			)
+
+@admin.register(Actus)
+class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
+	list_display = ("get_number", "get_button", "frln", "carVincode","get_marka", "get_date", "isClose", "isRegistred", "isCalled", "creator")
+
+	list_filter_submit = True  # Submit button at the bottom of the filter
+	list_filter = (
+    	("createDate", RangeDateFilter),           
+    	RegisterFilter, 
+    	ActusUserFilter
+    )
+
+	search_fields = ("number", "button__iccid", "button__imei", "button__serial", "frln", "carMarka", "carVincode")
+	readonly_fields = ("creator", "isClose", "act", "contract",)
+	autocomplete_fields = ["button"]
+	resource_classes = [ActusResourse]
+
+	fieldsets = (
+      ('Акт', {
+          'fields': ('number', 'cost',)
+      }),
+    
+      ('Кнопка', {
+          'fields': ('button',)
+      }),
+    
+      ('Транспорт', {
+          'fields': ('carMarka', 'carVincode', 'carYear', 'carColor')
+      }),
+    
+      ('Клиент', {
+          'fields': ('frln', 'personUid', 'personNumber', 'personPublic', 'personPhone', 'address')
+      }),
+    
+      ('Файлы', {
+          'fields': ('act', 'contract', "app1", "app2", "app3",)
+      }),
+    )
+
+	@admin.display(ordering='number', description='№')
+	def get_number(self, obj):
+		return obj.number
+
+	@admin.display(ordering='button__iccid', description='Кнопка')
+	def get_button(self, obj):
+		return format_html('%s<br/>%s<br/>%s<br/>%s' % (
+            obj.button.iccid, obj.button.imei, obj.button.serial, obj.button.hwname))   #"{obj.button.iccid}\n{obj.button.imei}\n{obj.button.serial}"
+
+	@admin.display(ordering='carMarka', description='Марка/Модель машины')
+	def get_marka(self, obj):
+		return obj.carMarka
+
+	@admin.display(ordering='createDate', description='Дата')
+	def get_date(self, obj):
+		delta = timedelta(hours=5, minutes=0)
+		crt = obj.createDate + delta
+		return format_html('%s<br/>%s' % (
+           	crt.strftime("%d.%m.%Y"), crt.strftime("%H:%M:%S"))) #obj.createDate.strftime("%d.%m.%Y")
+
+	def get_queryset(self, request):
+		qs = super().get_queryset(request)
+
+		if request.user.is_superuser:
+			return qs.order_by("-id")
+		else:
+			if isinstance(request.user, User):
+				susers = SubUser.objects.filter(creator=request.user)
+				return qs.filter(creator__in=susers)
+			else:
+				if "autocomplete" in request.path and request.user.has_perm("cert.change_certificates"):
+					return qs
+
+				return qs.filter(creator=request.user).order_by("-id")
+
+	def get_readonly_fields(self, request, obj=None):
+		if request.user.is_superuser: 
+			return ['creator', 'isClose', 'act', 'contract']
+
+		# if request.user.username == "qaztehna":
+		# 	return ["frln", "personUid", "personNumber", "personPublic", "personPhone", 
+		# "address", "app1", "app2", "app3", "act", "contract"]
+		
+
+		if obj and obj.isClose:
+			return ['number', 'cost', 'button', 
+                    'creator', 'isClose', 'act', 'contract', 'app1', 'app2', 'app3']
+
+		return ['creator', 'isClose', 'act', 'contract']
+
+	def save_model(self, request, obj, form, change):
+		now = datetime.now()
+
+		if not request.user.is_superuser:
+			obj.creator = request.user
+
+		try:
+			last_object = Actus.objects.filter(creator=request.user).latest('number')
+			obj.number = obj.number if obj.number else last_object.number + 1
+		except:
+			pass
+
+		model = obj.__dict__
+		model["first_name"] = obj.creator.first_name
+		model["last_name"] = obj.creator.last_name
+		model["day"] = now.day
+		model["month"] = month_to_string.get(now.month)
+		model["year"] = now.year
+		profile = Profile.objects.get(user=obj.creator.creator)
+		model["vendor_phone"] = profile.phone
+		model["vendor"] = profile.vendor
+		model["vendor_address"] = profile.address
+		model["vendor_email"] = obj.creator.creator.email
+		model["vendor_iik"] = profile.iik
+		model["vendor_uid"] = profile.uid
+		model["vendor_fil"] = profile.fil
+		model["vendor_bik"] = profile.bik
+		model["vendor_frln"] = f"{obj.creator.creator.last_name} {obj.creator.creator.first_name}"
+		
+		#model["personPublic"] = model["personPublic"].strftime("%d.%m.%Y")
+		model = {**model, **obj.button.__dict__}
+		if model.get("personPublic"):
+			model["personPublic"] = model["personPublic"].strftime("%d.%m.%Y")
+
+		if obj.button.imei == None:
+			model["imei"] = ""
+		if obj.button.serial == None:
+			model["serial"] = ""
+
+		act =  DocxTemplate(BASE_DIR / f"media/ref/act.docx")
+		if request.user.username == "qaztehna":
+			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act.docx")
+		else:
+			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_qaz.docx")
+		
+		act.replace_pic("sigtest1.png", obj.creator.sign)
+		act.replace_pic("vendor_sign.png", profile.seal)
+		act.render(model)
+		act.save(BASE_DIR / f"media/act/Акт_{obj.number}){obj.frln} - {obj.carVincode}.docx")
+		convert_to(BASE_DIR / f"media/act/Акт_{obj.number}){obj.frln} - {obj.carVincode}.docx")
+
+
+		if request.user.username == "qaztehna":
+			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_contract_qaz.docx")
+		else:
+			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_contract.docx")
+
+		act_contract.replace_pic("sigtest1.png", profile.sign)
+		act_contract.replace_pic("vendor_sign.png", profile.seal)
+		act_contract.render(model)
+		act_contract.save(BASE_DIR / f"media/act/Договор_{obj.number}.docx")
+		convert_to(BASE_DIR / f"media/act/Договор_{obj.number}.docx")
+
+		
+
+		obj.act =  f"act/Акт_{obj.number}){obj.frln} - {obj.carVincode}.pdf"
+		obj.contract =  f"act/Договор_{obj.number}.pdf"
+		obj.isClose = True
+
+		super().save_model(request, obj, form, change)
+
+	class Media:
+		js = (
+        	"//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js",
+        	'js/custom_list_color.js',
+        )  # Укажите путь к вашему JavaScript файлу
+
+@admin.register(ActusPending)
+class ActusReportMenu(ModelAdmin, ExportActionModelAdmin):
+	list_display = ("get_number", "get_button", "frln", "carVincode","get_marka", "get_date", "isClose", "isRegistred", "isCalled", "creator")
+	list_filter_submit = True  # Submit button at the bottom of the filter
+
+	list_filter = (
+    	("createDate", RangeDateFilter),           
+    	RegisterFilter, 
+    	ActusUserFilter
+    )
+
+	search_fields = ("number", "button__iccid", "button__imei", "button__serial", "frln", "carMarka", "carVincode")
+	readonly_fields = ("creator", "isClose", "act", "contract",)
+	#raw_id_fields = ["button"]
+	autocomplete_fields = ["button"]
+	resource_classes = [ActusReportResourse]
+
+	fieldsets = (
+      ('Акт', {
+          'fields': ('number', 'cost',)
+      }),
+    
+      ('Кнопка', {
+          'fields': ('button',)
+      }),
+    
+      ('Транспорт', {
+          'fields': ('carMarka', 'carVincode', 'carYear', 'carColor')
+      }),
+    
+      ('Клиент', {
+          'fields': ('frln', 'personUid', 'personNumber', 'personPublic', 'personPhone', 'address')
+      }),
+    
+      ('Файлы', {
+          'fields': ('act', 'contract', "app1", "app2", "app3",)
+      }),
+    
+    )
+
+	@admin.display(ordering='number', description='№')
+	def get_number(self, obj):
+		return obj.number
+
+	@admin.display(ordering='button__iccid', description='Кнопка')
+	def get_button(self, obj):
+		return format_html('%s<br/>%s<br/>%s<br/>%s' % (
+            obj.button.iccid, obj.button.imei, obj.button.serial, obj.button.hwname))   #"{obj.button.iccid}\n{obj.button.imei}\n{obj.button.serial}"
+
+	@admin.display(ordering='carMarka', description='Марка/Модель машины')
+	def get_marka(self, obj):
+		return obj.carMarka
+
+	@admin.display(ordering='createDate', description='Дата')
+	def get_date(self, obj):
+		delta = timedelta(hours=5, minutes=0)
+		crt = obj.createDate + delta
+		return format_html('%s<br/>%s' % (
+           	crt.strftime("%d.%m.%Y"), crt.strftime("%H:%M:%S"))) #obj.createDate.strftime("%d.%m.%Y")
+
+	def get_queryset(self, request):
+		qs = super().get_queryset(request)
+
+
+		if request.user.is_superuser:
+			return qs.order_by("-id")
+		else:
+			if isinstance(request.user, User):
+				susers = SubUser.objects.filter(creator=request.user)
+				return qs.filter(creator__in=susers)
+			else:
+				return qs.filter(creator=request.user).order_by("-id")
+
+	def get_readonly_fields(self, request, obj=None):
+		if request.user.is_superuser: 
+			return ['creator', 'isClose', 'act', 'contract']
+
+		if obj and obj.isClose:
+			return ['number', 'cost', 'button', 
+                    'creator', 'isClose', 'act', 'contract', 'app1', 'app2', 'app3']
+
+		return ['creator', 'isClose', 'act', 'contract']
+
+
+
+@admin.register(Button)
+class ButtonAdminMenu(ModelAdmin, ImportExportModelAdmin):
+	import_form_class = ImportForm
+	export_form_class = ExportForm
+	list_display = ("iccid","imei", "serial", "hwname", "user", "createDate")
+	list_filter_submit = True
+	list_filter = ("hwname", ("createDate", RangeDateFilter), ButtonUserFilter,)
+	search_fields = ("iccid", "imei", "serial", "hwname")
+	ordering = ["iccid"]
+	readonly_fields = ("user",)
+	resource_class = ButtonResource
+
+	def get_queryset(self, request):
+		qs = super().get_queryset(request)
+
+		if "autocomplete" in request.path:
+			return qs.filter(actus__isnull=True, user=request.user)
+		else:
+			if request.user.is_superuser:
+				return qs
+			else:
+				return qs.filter(user__username=request.user)
+
+	# def get_import_resource_kwargs(self, request, *args, **kwargs):
+	# 	kwargs = super().get_resource_kwargs(request, *args, **kwargs)
+	# 	kwargs.update({"user": request.user})
+	# 	return kwargs
+
+	def save_model(self, request, obj, form, change):
+		if not request.user.is_superuser:
+			obj.user = request.user
+		super().save_model(request, obj, form, change)
+

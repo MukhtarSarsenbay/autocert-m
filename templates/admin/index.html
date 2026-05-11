@@ -1,0 +1,62 @@
+{% extends 'unfold/layouts/base_simple.html' %}
+
+{% load cache unfold i18n %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block title %}
+    {% if subtitle %}
+        {{ subtitle }} |
+    {% endif %}
+
+    {{ title }} | {{ site_title|default:_('Django site admin') }}
+{% endblock %}
+
+{% block branding %}
+    <h1 id="site-name">
+        <a href="{% url 'admin:index' %}">
+            {{ site_header|default:_('Django administration') }}
+        </a>
+    </h1>
+{% endblock %}
+
+{% block content %}
+   {% component "unfold/components/container.html" %}
+
+		{% component "unfold/components/flex.html" %}
+			{% component "unfold/components/card.html" with title="Количество актов" %}
+				{{count_actus}}
+			{% endcomponent %}
+		
+			{% component "unfold/components/card.html" with title="Количество устройств" %}
+				{{count_button}}
+			{% endcomponent %}
+
+			{% component "unfold/components/card.html" with title="Количество сертификатов" %}
+				{{count_cert}}
+			{% endcomponent %}
+		{% endcomponent %}
+
+		<br/>
+
+		{% component "unfold/components/card.html" with title=dashtitlemonth %}
+	 		{% component "unfold/components/chart/bar.html" with height="300" data=monthdata options=options %}
+	 		{% endcomponent %} 
+		{% endcomponent %}
+
+		<br/>
+
+		{% component "unfold/components/card.html" with title=dashtitleyear %}
+	 		{% component "unfold/components/chart/bar.html" with data=yeardata options=options height="300" %}
+	 		{% endcomponent %} 
+		{% endcomponent %}
+
+		<br/>
+	
+		{% component "unfold/components/card.html" with title=dashtitleuser %}
+	 		{% component "unfold/components/chart/bar.html" with data=userdata options=options height="300" %}
+	 		{% endcomponent %} 
+		{% endcomponent %}
+
+   {% endcomponent %}
+{% endblock %}

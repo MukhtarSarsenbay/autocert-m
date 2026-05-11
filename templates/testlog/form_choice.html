@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Новая запись об испытаниях</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f3efe8;
+      --bg-accent: radial-gradient(circle at top, rgba(89, 56, 160, 0.08), transparent 34%), linear-gradient(180deg, #f7f4ef 0%, #efe8de 100%);
+      --panel: rgba(255, 255, 255, 0.8);
+      --panel-strong: #ffffff;
+      --panel-muted: #f6f1ea;
+      --border: rgba(84, 59, 136, 0.16);
+      --border-strong: rgba(84, 59, 136, 0.3);
+      --text: #21162d;
+      --muted: #655a73;
+      --accent: #6f38d8;
+      --accent-2: #1e5bb8;
+      --shadow: 0 20px 44px rgba(49, 34, 77, 0.12);
+    }
+
+    [data-theme="dark"] {
+      --bg: #120b1a;
+      --bg-accent: radial-gradient(circle at top, rgba(123, 60, 230, 0.24), transparent 30%), linear-gradient(180deg, #120b1a 0%, #1a1025 100%);
+      --panel: rgba(27, 16, 39, 0.84);
+      --panel-strong: #1b1027;
+      --panel-muted: #201133;
+      --border: #3a2456;
+      --border-strong: #5b36a1;
+      --text: #f3eaff;
+      --muted: #cbb8ff;
+      --accent: #7b3ce6;
+      --accent-2: #9a5bff;
+      --shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #120b1a;
+        --bg-accent: radial-gradient(circle at top, rgba(123, 60, 230, 0.24), transparent 30%), linear-gradient(180deg, #120b1a 0%, #1a1025 100%);
+        --panel: rgba(27, 16, 39, 0.84);
+        --panel-strong: #1b1027;
+        --panel-muted: #201133;
+        --border: #3a2456;
+        --border-strong: #5b36a1;
+        --text: #f3eaff;
+        --muted: #cbb8ff;
+        --accent: #7b3ce6;
+        --accent-2: #9a5bff;
+        --shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      background-image: var(--bg-accent);
+    }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 1100px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 0;
+    }
+
+    .intro {
+      padding: 40px;
+      border-right: 1px solid var(--border);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--panel-muted);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .title {
+      margin: 18px 0 12px;
+      font-size: clamp(34px, 6vw, 56px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      max-width: 560px;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .meta {
+      margin-top: 22px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--panel-muted);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .actions {
+      padding: 40px;
+      background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.02) 100%);
+    }
+
+    .theme-toggle {
+      margin-left: auto;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      background: var(--panel-strong);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-1px);
+      border-color: var(--border-strong);
+    }
+
+    .theme-toggle:focus-visible {
+      outline: 2px solid var(--accent-2);
+      outline-offset: 3px;
+    }
+
+    .theme-toggle svg {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .theme-toggle .icon-sun {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+
+    .theme-toggle .icon-moon {
+      opacity: 0;
+      transform: scale(0.75) rotate(-20deg);
+    }
+
+    [data-theme="dark"] .theme-toggle .icon-sun {
+      opacity: 0;
+      transform: scale(0.75) rotate(20deg);
+    }
+
+    [data-theme="dark"] .theme-toggle .icon-moon {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+
+    .action-top {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 18px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-strong);
+      box-shadow: 0 16px 28px rgba(0,0,0,0.08);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: auto -80px -80px auto;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(123,60,230,0.18), transparent 68%);
+      pointer-events: none;
+    }
+
+    .card-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .card-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--muted);
+      max-width: 32ch;
+      margin-bottom: 16px;
+    }
+
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-2);
+    }
+
+    .card-link::after {
+      content: "→";
+      font-size: 16px;
+    }
+
+    .footer {
+      padding: 0 40px 34px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .intro {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        padding: 12px;
+      }
+
+      .intro,
+      .actions,
+      .footer {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .intro,
+      .actions {
+        padding-top: 22px;
+        padding-bottom: 22px;
+      }
+
+      .title {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="shell">
+      <section class="hero">
+        <div class="intro">
+          <div class="eyebrow">LABAUTO · TestLog</div>
+          <h1 class="title">Выберите форму записи</h1>
+          <p class="subtitle">
+            Один список записей, две формы ввода. Для обычных транспортных средств используйте стандартную форму.
+            Для прицепов и полуприцепов используйте отдельную форму O1-O4.
+          </p>
+          <div class="meta">
+            <div class="chip">Стандартная форма: M / N</div>
+            <div class="chip">Отдельная форма: O1 / O2 / O3 / O4</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <div class="action-top">
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему">
+              <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2.5v2.5M12 19v2.5M21.5 12H19M5 12H2.5M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8M18.7 18.7l-1.8-1.8M7.1 7.1L5.3 5.3"></path>
+              </svg>
+              <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 14.2A7.8 7.8 0 1 1 9.8 4 6.5 6.5 0 0 0 20 14.2z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="stack">
+            <a class="card" href="/app/testlog/form/?kind=default">
+              <div class="card-title">Обычная форма</div>
+              <div class="card-text">
+                Стандартная запись об испытаниях для категорий M и N. Текущий основной сценарий работы.
+              </div>
+              <div class="card-link">Открыть форму</div>
+            </a>
+
+            <a class="card" href="/app/testlog/form/?kind=trailer">
+              <div class="card-title">Прицеп O1-O4</div>
+              <div class="card-text">
+                Отдельная форма для прицепов и полуприцепов на базе шаблона <code>o1o2o3.html</code>.
+              </div>
+              <div class="card-link">Открыть форму</div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        После сохранения запись попадет в общий список TestLog. При открытии существующей записи будет использоваться подходящая форма.
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      var root = document.documentElement;
+      var key = 'testlog-form-choice-theme';
+      var btn = document.getElementById('theme-toggle');
+      if(!btn) return;
+
+      function syncToggle(theme){
+        var nextLabel = theme === 'dark' ? 'Включить светлую тему' : 'Включить темную тему';
+        btn.setAttribute('aria-label', nextLabel);
+        btn.setAttribute('title', nextLabel);
+      }
+
+      var saved = localStorage.getItem(key);
+      if(saved === 'light' || saved === 'dark'){
+        root.setAttribute('data-theme', saved);
+        syncToggle(saved);
+      } else {
+        syncToggle(root.getAttribute('data-theme'));
+      }
+
+      btn.addEventListener('click', function(){
+        var current = root.getAttribute('data-theme');
+        var next = current === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem(key, next);
+        syncToggle(next);
+      });
+    })();
+  </script>
+</body>
+</html>

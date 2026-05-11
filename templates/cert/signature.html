@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>test</title>
+		<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+		<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+		<style>
+			.wrapper {
+  				position: relative;
+  				width: 400px;
+  				height: 200px;
+  				-moz-user-select: none;
+  				-webkit-user-select: none;
+  				-ms-user-select: none;
+  				user-select: none;
+  				border: 2px solid;
+  				margin-bottom: 10px;
+			}
+
+			.signature-pad {
+  				position: absolute;
+  				left: 0;
+  				top: 0;
+  				width:400px;
+  				height:200px;
+  				background-color: white;
+			}
+		</style>
+	</head>
+	<body>
+		<div>Подпись для клиента {{lastName}} {{firstName}} {{middleName}}</div>
+    	<div id="vin">{{carVin}}</div>
+
+		<div class="wrapper">
+			<canvas id="signature-pad" class="signature-pad" width=400 height=200>
+
+			</canvas>
+		</div>
+
+		<button id="save-signature">Подписать сигнатуру</button>
+
+
+		<script type="text/javascript">
+			const canvas = document.querySelector("canvas")
+
+
+
+			const signaturePad = new SignaturePad(canvas)
+			signaturePad.minWidth = 1;
+			signaturePad.maxWidth = 3;
+			signaturePad.penColor = "rgb(66, 133, 244)";
+
+			const ctx = canvas.getContext("2d");
+			ctx.beginPath()
+			ctx.moveTo(10, 150);
+			ctx.lineTo(390, 150);
+			ctx.strokeStyle = "black"
+			ctx.lineWidth = 2;
+			ctx.stroke();
+        
+        	const b64toBlob = (b64Data, contentType='', sliceSize=512) => {
+  				const byteCharacters = atob(b64Data);
+  				const byteArrays = [];
+
+  				for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+    				const slice = byteCharacters.slice(offset, offset + sliceSize);
+
+   		 			const byteNumbers = new Array(slice.length);
+    				for (let i = 0; i < slice.length; i++) {
+      					byteNumbers[i] = slice.charCodeAt(i);
+    				}
+
+    				const byteArray = new Uint8Array(byteNumbers);
+    					byteArrays.push(byteArray);
+  					}
+
+  					const blob = new Blob(byteArrays, {type: contentType});
+  					return blob;
+			}
+  
+      
+
+			$( document ).ready(function() {
+				$("#save-signature").on( "click", function() {
+                
+                	var sigdata = signaturePad.toDataURL();
+                	
+                	const blob = b64toBlob(sigdata.replace('data:image/png;base64,', ''), 'image/png')
+                
+                	var data = new FormData();
+                	data.append('vin', $("#vin").text());
+                	data.append('signature', blob, 'sigtest.png');
+                	console.log(sigdata)
+                
+                	if (signaturePad.isEmpty()) {
+                    	alert("Ошибка подпись не нарисовано")
+                    	return
+                    }
+                
+					$.ajax({
+                    	method: "POST",
+                    	type: 'POST',
+                    	url: "/api/setsignature/",
+                    	headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                    	cache: false,
+    					contentType: false,
+    					processData: false,
+                    	data: data,
+                        success: function(result) {
+                        	//alert("Успешно загружено подпись!")
+                        	window.close()
+                        },
+                    	error: function(){
+   						 	alert('Ошибка подпись не загружено, повторите еще раз!');
+  						}
+                        }
+                    );
+				})
+			})
+
+		</script>
+	</body>
+</html>

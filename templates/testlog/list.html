@@ -1,0 +1,82 @@
+﻿<!DOCTYPE html>
+<html>
+<h1 style="color:red">TEST TEMPLATE CHECK</h1>
+<meta charset="utf-8">
+  <head>
+    <title>TEST</title>
+    <style>
+      :root {
+        --bg: #120b1a;
+        --panel: #1b1027;
+        --panel-2: #201133;
+        --border: #3a2456;
+        --text: #f3eaff;
+        --muted: #cbb8ff;
+        --accent: #7b3ce6;
+        --accent-2: #9a5bff;
+        --danger: #ff6b7a;
+        --success: #41d39a;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+      .page { padding: 20px; max-width: 1200px; margin: 0 auto; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+      .title { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+      .btn { background: var(--accent); color: #fff; padding: 8px 14px; border-radius: 8px; text-decoration: none; border: 1px solid var(--accent-2); }
+      .btn:hover { background: #8b4dff; }
+      .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+      .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+      .card .value { font-size: 22px; font-weight: 700; margin-top: 6px; }
+      .table-wrap { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+      th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+      tr:hover { background: rgba(255,255,255,0.03); }
+      a { color: var(--accent-2); text-decoration: none; }
+      @media (max-width: 900px) {
+        .cards { grid-template-columns: 1fr; }
+        .topbar { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <div class="title">Записи об испытаниях</div>
+        <a class="btn" href="/app/testlog/form/">Создать новую</a>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+                <th>Номер теста</th>
+                <th>Дата</th>
+                <th>Марка ТС</th>
+                <th>VIN</th>
+            	<th>PDF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for obj in items %}
+            <tr>
+              <td>{{ obj.test_number }}</td>
+              <td>{{ obj.test_date }}</td>
+              <td>{{ obj.car_mark }}</td>
+              <td>{{ obj.vin_last4 }}</td>
+            <td>
+        {% if obj.protocol %}
+          <a class="btn" href="/testlog/testlog/download/{{ obj.id }}/">Скачать</a>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>
