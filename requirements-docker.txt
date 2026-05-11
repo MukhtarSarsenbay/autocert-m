@@ -13,6 +13,7 @@ djangorestframework==3.14.0
 docxtpl==0.16.7
 grequests==0.7.0
 gunicorn==21.2.0
+whitenoise==6.6.0
 beautifulsoup4==4.12.2
 lxml==4.9.3
 openpyxl==3.1.2

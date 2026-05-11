@@ -1,4 +1,6 @@
 .git
+.env
+.env.*
 .venv
 venv
 env
@@ -10,6 +12,9 @@ __pycache__
 db.sqlite3
 *.sqlite3
 act
+media/
+postgres_data/
+staticfiles/
 text.xlsx
 imeis.txt
 *.log
