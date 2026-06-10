@@ -103,7 +103,29 @@ def _get_creator_for_superuser(user, creator_id=None):
     creator = SubUser.objects.filter(creator=user, is_active=True).order_by("id").first()
     if creator:
         return creator
-    return SubUser.objects.filter(is_active=True).order_by("id").first()
+    creator = SubUser.objects.filter(creator=user).order_by("id").first()
+    if creator:
+        if not creator.is_active:
+            creator.is_active = True
+            creator.save(update_fields=["is_active"])
+        return creator
+
+    base_username = f"{user.username}_testlog"[:140]
+    username = base_username
+    suffix = 1
+    while SubUser.objects.filter(username=username).exists():
+        suffix += 1
+        username = f"{base_username}_{suffix}"[:150]
+
+    return SubUser.objects.create_user(
+        username=username,
+        password=None,
+        creator=user,
+        is_active=True,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        email=user.email or "",
+    )
 
 def badge_callback_testlog(request):
     if not _can_access_testlog(request.user):                                                                                                                                                          
