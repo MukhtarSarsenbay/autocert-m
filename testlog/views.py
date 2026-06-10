@@ -3,8 +3,11 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.db import close_old_connections
 from docxtpl import DocxTemplate
+import logging
 import re
+import threading
 from datetime import date
 import calendar
 from pathlib import Path
@@ -15,6 +18,7 @@ from cert.utils import convert_to
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+logger = logging.getLogger(__name__)
 DEFAULT_TEMPLATE_PATH = BASE_DIR / "media" / "ref" / "main_doc.fixed6.docx"
 TRAILER_TEMPLATE_DOCX_PATH = BASE_DIR / "media" / "ref" / "main_doc_trailer.docx"
 FORM_TO_MODEL_ALIASES = {                                                                                                                                                                              
@@ -150,6 +154,25 @@ def _render_pdf(obj):
     obj.isClose = True
     obj.save(update_fields=["protocol", "isClose"])
     return True
+
+
+def _render_pdf_worker(obj_id):
+    close_old_connections()
+    try:
+        obj = TestLog.objects.get(id=obj_id)
+        _render_pdf(obj)
+    except Exception:
+        logger.exception("Failed to render TestLog PDF for id=%s", obj_id)
+    finally:
+        close_old_connections()
+
+
+def _queue_pdf_render(obj):
+    obj.protocol = None
+    obj.isClose = False
+    obj.save(update_fields=["protocol", "isClose"])
+    thread = threading.Thread(target=_render_pdf_worker, args=(obj.id,), daemon=True)
+    thread.start()
 
 
 FORM_PATH = BASE_DIR / "templates" / "testlog" / "form_raw.html"
@@ -349,10 +372,8 @@ def form_page(request, pk):
         else:                                                                                                          
             obj.test_date = None 
         obj.save()
-        ok = _render_pdf(obj)
-        if ok:
-            return HttpResponse("ok")
-        return HttpResponse("docx saved; pdf conversion unavailable", status=202)
+        _queue_pdf_render(obj)
+        return HttpResponse("pdf queued", status=202)
 
     form_path = TRAILER_FORM_PATH if _is_trailer_category(obj.car_category) else FORM_PATH
     if not form_path.exists():
@@ -408,10 +429,8 @@ def form_create(request):
         else:                                                                                                          
             obj.test_date = None                                                                                                                                                                                  
         obj.save()                                                                                                                                                                                     
-        ok = _render_pdf(obj)                                                                                                                                                                          
-        if ok:                                                                                                                                                                                         
-            return HttpResponse("ok")                                                                                                                                                                  
-        return HttpResponse("docx saved; pdf conversion unavailable", status=202)
+        _queue_pdf_render(obj)
+        return HttpResponse("pdf queued", status=202)
 
     if kind == "trailer":
         if not TRAILER_FORM_PATH.exists():
@@ -504,4 +523,3 @@ def download_pdf(request, pk):
         filename=filename,
         content_type="application/pdf",
     )
-

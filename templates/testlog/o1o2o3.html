@@ -2195,13 +2195,28 @@
       var fd = new FormData(form);
       fetch(window.location.href, { method: 'POST', body: fd })
         .then(function(r){
-          if(r.status === 400){
-            return r.json().then(function(data){ showErrors(data.errors || {}); });
-          }
           return r.text().then(function(t){
             var box = document.getElementById('tl-errors');
+            if(r.status === 400){
+              try {
+                var data = JSON.parse(t);
+                showErrors(data.errors || {});
+              } catch(err) {
+                if(box){ box.textContent = 'Ошибка валидации: ' + t; }
+              }
+              return;
+            }
+            if(!r.ok){
+              if(box){ box.textContent = 'Ошибка сервера ' + r.status + ': ' + t; }
+              return;
+            }
             if(t.indexOf('ok') !== -1){
               showToast('Сохранено и конвертировано в PDF.', 'success');
+              setTimeout(closeOrGoToList, 700);
+              return;
+            }
+            if(t.indexOf('pdf queued') !== -1){
+              showToast('Сохранено. PDF формируется в фоне.', 'warn');
               setTimeout(closeOrGoToList, 700);
               return;
             }
@@ -2213,9 +2228,11 @@
             if(box){ box.textContent = t; }
           });
         })
-        .catch(function(){
+        .catch(function(err){
+          console.error('TestLog save failed', err);
           var box = document.getElementById('tl-errors');
-          if(box){ box.textContent = 'Ошибка сети'; }
+          var details = err && err.message ? ': ' + err.message : '';
+          if(box){ box.textContent = 'Ошибка сети' + details; }
         });
     });
   }
