@@ -95,6 +95,16 @@ def _can_edit_testlog_obj(user, obj):
 def _can_delete_testlog_obj(user, obj):                                                                                                                                                                
     return _can_edit_testlog_obj(user, obj) 
 
+def _get_creator_for_superuser(user, creator_id=None):
+    if creator_id:
+        creator = SubUser.objects.filter(id=creator_id).first()
+        if creator:
+            return creator
+    creator = SubUser.objects.filter(creator=user, is_active=True).order_by("id").first()
+    if creator:
+        return creator
+    return SubUser.objects.filter(is_active=True).order_by("id").first()
+
 def badge_callback_testlog(request):
     if not _can_access_testlog(request.user):                                                                                                                                                          
         return 0                                                                                                                                                                                       
@@ -401,9 +411,9 @@ def form_create(request):
             obj = TestLog.objects.create(creator=request.user)                                                                                                                                         
         elif request.user.is_superuser:                                                                                                                                                                
             creator_id = request.POST.get("creator_id")                                                                                                                                                
-            creator = SubUser.objects.filter(id=creator_id).first() if creator_id else None                                                                                                            
+            creator = _get_creator_for_superuser(request.user, creator_id)                                                                                                                             
             if creator is None:                                                                                                                                                                        
-                return HttpResponse("creator_id required for superuser", status=400)                                                                                                                   
+                return HttpResponse("No active SubUser found for superuser", status=400)                                                                                                               
             obj = TestLog.objects.create(creator=creator)                                                                                                                                              
         else:                                                                                                                                                                                          
             return HttpResponse("forbidden", status=403)                                                                                                                                               
