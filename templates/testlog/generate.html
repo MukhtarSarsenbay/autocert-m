@@ -29,6 +29,7 @@
 		</style>
 	</head>
 	<body>
+		{% csrf_token %}
 		<div>Запись об испытаниях № {{test_number}}</div>
     	<div id="test_id" style="display:none;">{{id}}</div>
 
@@ -64,6 +65,7 @@
 						type: 'POST',
 						url: "/api/testlog/generate/",
 						headers: {'X-CSRFToken': getCookie("csrftoken")},
+						xhrFields: { withCredentials: true },
 						cache: false,
 						contentType: "application/json",
 						processData: false,

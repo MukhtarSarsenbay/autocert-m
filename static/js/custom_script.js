@@ -45,6 +45,31 @@ function getCSRFToken() {
     return cookieValue;
 }
 
+function csrfSafeMethod(method) {
+    return /^(GET|HEAD|OPTIONS|TRACE)$/i.test(method || '');
+}
+
+function sameOrigin(url) {
+    if (!url) {
+        return true;
+    }
+    const origin = window.location.protocol + '//' + window.location.host;
+    return (url.charAt(0) === '/' && url.charAt(1) !== '/') || url.indexOf(origin) === 0;
+}
+
+if ($ && $.ajaxSetup) {
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!csrfSafeMethod(settings.type || settings.method) && sameOrigin(settings.url)) {
+                const token = getCSRFToken();
+                if (token) {
+                    xhr.setRequestHeader('X-CSRFToken', token);
+                }
+            }
+        }
+    });
+}
+
    	// Функция для загрузки файла по ссылке
 function downloadFile(url) {
   fetch(url)

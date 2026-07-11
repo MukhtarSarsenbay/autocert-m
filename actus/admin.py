@@ -58,6 +58,45 @@ month_to_string = {
 	12: "декабря"
 }
 
+def get_default_subuser(user, create=False):
+	if isinstance(user, SubUser):
+		return user
+	if isinstance(user, User):
+		qs = SubUser.objects.filter(creator=user)
+		subuser = qs.filter(is_active=True).order_by("id").first() or qs.order_by("id").first()
+		if subuser or not create:
+			return subuser
+
+		profile = Profile.objects.filter(user=user).first()
+		if not profile or not profile.sign:
+			return None
+
+		base_username = f"{user.username}_actus"[:140]
+		username = base_username
+		suffix = 1
+		while SubUser.objects.filter(username=username).exists():
+			suffix += 1
+			username = f"{base_username}_{suffix}"[:150]
+
+		return SubUser.objects.create_user(
+			username=username,
+			password=None,
+			creator=user,
+			is_active=True,
+			first_name=user.first_name,
+			last_name=user.last_name,
+			email=user.email or "",
+			sign=profile.sign,
+		)
+	return None
+
+def get_actus_creator(request, obj, create=False):
+	if obj.button_id and obj.button and obj.button.user_id:
+		return obj.button.user
+	if obj.creator_id:
+		return obj.creator
+	return get_default_subuser(request.user, create=create)
+
 class ActusUserFilter(admin.SimpleListFilter):
 	title = "Пользователь"
 	parameter_name = "creator"
@@ -75,6 +114,8 @@ class ActusUserFilter(admin.SimpleListFilter):
 			result = []
 			for actus_user_count in actus_users_counts:
 				user_id = actus_user_count['creator']
+				if not user_id:
+					continue
 				actus_count = actus_user_count['count']
 				button_count = next((item['count'] for item in button_users_counts if item['user'] == user_id), 0)
 				result.append([user_id, f"{SubUser.objects.get(id=user_id).username}:А{actus_count}/К{button_count}/О{button_count-actus_count}"])
@@ -156,12 +197,12 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 
 	search_fields = ("number", "button__iccid", "button__imei", "button__serial", "frln", "carMarka", "carVincode")
 	readonly_fields = ("creator", "isClose", "act", "contract",)
-	autocomplete_fields = ["button"]
+	autocomplete_fields = ["button", "creator"]
 	resource_classes = [ActusResourse]
 
 	fieldsets = (
       ('Акт', {
-          'fields': ('number', 'cost',)
+          'fields': ('number', 'cost', 'creator')
       }),
     
       ('Кнопка', {
@@ -217,8 +258,10 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 				return qs.filter(creator=request.user).order_by("-id")
 
 	def get_readonly_fields(self, request, obj=None):
-		if request.user.is_superuser: 
-			return ['creator', 'isClose', 'act', 'contract']
+		if request.user.is_superuser:
+			if obj:
+				return ['creator', 'isClose', 'act', 'contract']
+			return ['isClose', 'act', 'contract']
 
 		# if request.user.username == "qaztehna":
 		# 	return ["frln", "personUid", "personNumber", "personPublic", "personPhone", 
@@ -231,17 +274,29 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 
 		return ['creator', 'isClose', 'act', 'contract']
 
+	def formfield_for_foreignkey(self, db_field, request, **kwargs):
+		formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
+		if db_field.name == "creator" and request.user.is_superuser:
+			formfield.required = False
+			default_user = get_default_subuser(request.user)
+			if default_user:
+				formfield.initial = default_user.pk
+		return formfield
+
 	def save_model(self, request, obj, form, change):
 		now = datetime.now()
 
-		if not request.user.is_superuser:
-			obj.creator = request.user
+		creator = get_actus_creator(request, obj, create=True)
+		if creator:
+			obj.creator = creator
+		else:
+			raise ValueError("Не найден SubUser для создания акта. Выберите создателя, назначьте кнопку пользователю или заполните подпись в профиле главного admin.")
 
 		try:
-			last_object = Actus.objects.filter(creator=request.user).latest('number')
+			last_object = Actus.objects.filter(creator=obj.creator).latest('number')
 			obj.number = obj.number if obj.number else last_object.number + 1
 		except:
-			pass
+			obj.number = obj.number if obj.number else 1
 
 		model = obj.__dict__
 		model["first_name"] = obj.creator.first_name
@@ -249,16 +304,21 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		model["day"] = now.day
 		model["month"] = month_to_string.get(now.month)
 		model["year"] = now.year
-		profile = Profile.objects.get(user=obj.creator.creator)
+		company_user = obj.creator.creator
+		if not company_user and isinstance(request.user, User):
+			company_user = request.user
+		if not company_user:
+			raise ValueError("У создателя акта не указан главный пользователь.")
+		profile = Profile.objects.get(user=company_user)
 		model["vendor_phone"] = profile.phone
 		model["vendor"] = profile.vendor
 		model["vendor_address"] = profile.address
-		model["vendor_email"] = obj.creator.creator.email
+		model["vendor_email"] = company_user.email
 		model["vendor_iik"] = profile.iik
 		model["vendor_uid"] = profile.uid
 		model["vendor_fil"] = profile.fil
 		model["vendor_bik"] = profile.bik
-		model["vendor_frln"] = f"{obj.creator.creator.last_name} {obj.creator.creator.first_name}"
+		model["vendor_frln"] = f"{company_user.last_name} {company_user.first_name}"
 		
 		#model["personPublic"] = model["personPublic"].strftime("%d.%m.%Y")
 		model = {**model, **obj.button.__dict__}
@@ -322,12 +382,12 @@ class ActusReportMenu(ModelAdmin, ExportActionModelAdmin):
 	search_fields = ("number", "button__iccid", "button__imei", "button__serial", "frln", "carMarka", "carVincode")
 	readonly_fields = ("creator", "isClose", "act", "contract",)
 	#raw_id_fields = ["button"]
-	autocomplete_fields = ["button"]
+	autocomplete_fields = ["button", "creator"]
 	resource_classes = [ActusReportResourse]
 
 	fieldsets = (
       ('Акт', {
-          'fields': ('number', 'cost',)
+          'fields': ('number', 'cost', 'creator')
       }),
     
       ('Кнопка', {
@@ -382,14 +442,25 @@ class ActusReportMenu(ModelAdmin, ExportActionModelAdmin):
 				return qs.filter(creator=request.user).order_by("-id")
 
 	def get_readonly_fields(self, request, obj=None):
-		if request.user.is_superuser: 
-			return ['creator', 'isClose', 'act', 'contract']
+		if request.user.is_superuser:
+			if obj:
+				return ['creator', 'isClose', 'act', 'contract']
+			return ['isClose', 'act', 'contract']
 
 		if obj and obj.isClose:
 			return ['number', 'cost', 'button', 
                     'creator', 'isClose', 'act', 'contract', 'app1', 'app2', 'app3']
 
 		return ['creator', 'isClose', 'act', 'contract']
+
+	def formfield_for_foreignkey(self, db_field, request, **kwargs):
+		formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
+		if db_field.name == "creator" and request.user.is_superuser:
+			formfield.required = False
+			default_user = get_default_subuser(request.user)
+			if default_user:
+				formfield.initial = default_user.pk
+		return formfield
 
 
 
@@ -403,18 +474,39 @@ class ButtonAdminMenu(ModelAdmin, ImportExportModelAdmin):
 	search_fields = ("iccid", "imei", "serial", "hwname")
 	ordering = ["iccid"]
 	readonly_fields = ("user",)
+	autocomplete_fields = ["user"]
 	resource_class = ButtonResource
 
 	def get_queryset(self, request):
 		qs = super().get_queryset(request)
 
 		if "autocomplete" in request.path:
-			return qs.filter(actus__isnull=True, user=request.user)
-		else:
+			qs = qs.filter(actus__isnull=True)
 			if request.user.is_superuser:
 				return qs
-			else:
-				return qs.filter(user__username=request.user)
+			if isinstance(request.user, User):
+				return qs.filter(user__creator=request.user)
+			return qs.filter(user=request.user)
+
+		if request.user.is_superuser:
+			return qs
+		if isinstance(request.user, User):
+			return qs.filter(user__creator=request.user)
+		return qs.filter(user=request.user)
+
+	def get_readonly_fields(self, request, obj=None):
+		if request.user.is_superuser:
+			return ()
+		return ("user",)
+
+	def formfield_for_foreignkey(self, db_field, request, **kwargs):
+		formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
+		if db_field.name == "user" and request.user.is_superuser:
+			formfield.required = False
+			default_user = get_default_subuser(request.user)
+			if default_user:
+				formfield.initial = default_user.pk
+		return formfield
 
 	# def get_import_resource_kwargs(self, request, *args, **kwargs):
 	# 	kwargs = super().get_resource_kwargs(request, *args, **kwargs)
@@ -422,7 +514,10 @@ class ButtonAdminMenu(ModelAdmin, ImportExportModelAdmin):
 	# 	return kwargs
 
 	def save_model(self, request, obj, form, change):
-		if not request.user.is_superuser:
+		if isinstance(request.user, SubUser):
 			obj.user = request.user
+		elif isinstance(request.user, User):
+			default_user = get_default_subuser(request.user, create=True)
+			if default_user and not obj.user_id:
+				obj.user = default_user
 		super().save_model(request, obj, form, change)
-

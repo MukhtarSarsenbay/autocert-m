@@ -1,6 +1,6 @@
 from django.http import HttpResponse, FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db import close_old_connections
@@ -207,8 +207,10 @@ def _queue_pdf_render(obj):
     thread.start()
 
 
-FORM_PATH = BASE_DIR / "templates" / "testlog" / "form_raw.html"
-TRAILER_FORM_PATH = BASE_DIR / "templates" / "testlog" / "o1o2o3.html" 
+FORM_TEMPLATE_NAME = "testlog/form_raw.html"
+TRAILER_FORM_TEMPLATE_NAME = "testlog/o1o2o3.html"
+FORM_PATH = BASE_DIR / "templates" / FORM_TEMPLATE_NAME
+TRAILER_FORM_PATH = BASE_DIR / "templates" / TRAILER_FORM_TEMPLATE_NAME
 
 TYPE_CATEGORY = {
     "M1",
@@ -366,7 +368,7 @@ def _validate_form(post_data):
     return errors, cleaned
 
 
-@csrf_exempt
+@ensure_csrf_cookie
 @login_required
 def form_page(request, pk):
     if not _can_access_testlog(request.user):
@@ -410,10 +412,11 @@ def form_page(request, pk):
     form_path = TRAILER_FORM_PATH if _is_trailer_category(obj.car_category) else FORM_PATH
     if not form_path.exists():
         return HttpResponse("form not found", status=500)
-    return FileResponse(open(form_path, "rb"), content_type="text/html")
+    template_name = TRAILER_FORM_TEMPLATE_NAME if _is_trailer_category(obj.car_category) else FORM_TEMPLATE_NAME
+    return render(request, template_name)
 
 
-@csrf_exempt
+@ensure_csrf_cookie
 @login_required                                                                                                                                                                                        
 def form_create(request):                                                                                                                                                                              
     if not _can_access_testlog(request.user):                                                                                                                                                          
@@ -467,18 +470,18 @@ def form_create(request):
     if kind == "trailer":
         if not TRAILER_FORM_PATH.exists():
             return HttpResponse("trailer form not found", status=500)
-        return FileResponse(open(TRAILER_FORM_PATH, "rb"), content_type="text/html")
+        return render(request, TRAILER_FORM_TEMPLATE_NAME)
 
     if kind == "default":
         if not FORM_PATH.exists():
             return HttpResponse("form not found", status=500)
-        return FileResponse(open(FORM_PATH, "rb"), content_type="text/html")
+        return render(request, FORM_TEMPLATE_NAME)
 
     return render(request, "testlog/form_choice.html")
                                                                                                                                                                                                         
     if not FORM_PATH.exists():                                                                                                                                                                         
         return HttpResponse("form not found", status=500)                                                                                                                                              
-    return FileResponse(open(FORM_PATH, "rb"), content_type="text/html") 
+    return render(request, FORM_TEMPLATE_NAME)
 
     
 @login_required

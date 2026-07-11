@@ -429,6 +429,7 @@
 
 <body dir="ltr" style="max-width:29.7cm;margin-top:1.251cm; margin-bottom:1.499cm; margin-left:2cm; margin-right:1.251cm; ">
 <form class="tl-form" method="post">
+{% csrf_token %}
 
 
 
@@ -2775,7 +2776,13 @@
       if(fuelTypeCode){
         fd.set('fuel_type', getFuelTypeLabelByCode(fuelTypeCode));
       }
-      fetch(window.location.href, { method: 'POST', body: fd })
+      var csrfInput = form.querySelector('[name="csrfmiddlewaretoken"]');
+      fetch(window.location.href, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: csrfInput ? { 'X-CSRFToken': csrfInput.value } : {}
+      })
         .then(function(r){
           return r.text().then(function(t){
             var box = document.getElementById('tl-errors');
@@ -3646,7 +3653,6 @@
 </body>
 
 </html>
-
 
 
 

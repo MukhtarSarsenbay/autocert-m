@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 
 
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .models import Certificates
 from .serializers import CertModelSerializer, ImageModelSerializer
@@ -549,6 +550,7 @@ class setSignatureView(APIView):
 		return Response({"error": "bad request"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@ensure_csrf_cookie
 def signature(request):
 	vin = request.GET.get('vin')
 
@@ -562,5 +564,6 @@ def signature(request):
 	
 	return HttpResponse("params is null" + vin)
 
+@ensure_csrf_cookie
 def index_page(request):
 	return render(request, "cert/new_page.html")

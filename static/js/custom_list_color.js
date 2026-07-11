@@ -2,6 +2,44 @@ if (!$) {
     $ = django.jQuery;
 }
 
+function getCSRFToken() {
+    let cookieValue = null;
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.startsWith('csrftoken=')) {
+            cookieValue = cookie.substring('csrftoken='.length);
+            break;
+        }
+    }
+    return cookieValue;
+}
+
+function csrfSafeMethod(method) {
+    return /^(GET|HEAD|OPTIONS|TRACE)$/i.test(method || '');
+}
+
+function sameOrigin(url) {
+    if (!url) {
+        return true;
+    }
+    const origin = window.location.protocol + '//' + window.location.host;
+    return (url.charAt(0) === '/' && url.charAt(1) !== '/') || url.indexOf(origin) === 0;
+}
+
+if ($ && $.ajaxSetup) {
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!csrfSafeMethod(settings.type || settings.method) && sameOrigin(settings.url)) {
+                const token = getCSRFToken();
+                if (token) {
+                    xhr.setRequestHeader('X-CSRFToken', token);
+                }
+            }
+        }
+    });
+}
+
 function decodeVIN(vin) {
     // Проверяем длину VIN-кода
     if (vin.length !== 17) {

@@ -102,6 +102,7 @@
                     	type: 'POST',
                     	url: "/api/setsignature/",
                     	headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                        xhrFields: { withCredentials: true },
                     	cache: false,
     					contentType: false,
     					processData: false,
