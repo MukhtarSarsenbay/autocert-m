@@ -16,6 +16,12 @@ class MediaSettingsTests(SimpleTestCase):
     def test_media_url_is_absolute(self):
         self.assertEqual(settings.MEDIA_URL, "/media/")
 
+    def test_health_endpoint(self):
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok\n")
+
 
 class TestLogCreatorTests(TestCase):
     def setUp(self):
