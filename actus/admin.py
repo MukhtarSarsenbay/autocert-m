@@ -332,7 +332,7 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 			company_user = request.user
 		if not company_user:
 			raise ValueError("У создателя акта не указан главный пользователь.")
-		profile = Profile.objects.get(user=company_user)
+		profile, _ = Profile.objects.get_or_create(user=company_user)
 		model["vendor_phone"] = profile.phone
 		model["vendor"] = profile.vendor
 		model["vendor_address"] = profile.address
