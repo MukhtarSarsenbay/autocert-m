@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.conf import settings
 from .models import *
 #from import_export.admin import ImportMixin, ExportMixin, ExportActionModelAdmin
 from .resource import ButtonResource, ActusResourse, ActusReportResourse
@@ -57,6 +58,28 @@ month_to_string = {
 	11: "ноября",
 	12: "декабря"
 }
+
+
+def get_act_document_paths(obj):
+	output_dir = Path(settings.MEDIA_ROOT) / "act"
+	output_dir.mkdir(parents=True, exist_ok=True)
+
+	# User-entered names must not create nested paths or exceed filesystem limits.
+	details = f"{obj.frln} - {obj.carVincode}"
+	details = " ".join(details.replace("/", "-").replace("\\", "-").split())
+	act_name = f"Акт_{obj.number}){details}"[:70].rstrip(" .")
+	contract_name = f"Договор_{obj.number}"
+
+	return (
+		output_dir / f"{act_name}.docx",
+		output_dir / f"{contract_name}.docx",
+	)
+
+
+def replace_pic_if_present(template, placeholder, image):
+	if image:
+		template.replace_pic(placeholder, image)
+
 
 def get_default_subuser(user, create=False):
 	if isinstance(user, SubUser):
@@ -330,17 +353,14 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		if obj.button.serial == None:
 			model["serial"] = ""
 
-		act =  DocxTemplate(BASE_DIR / f"media/ref/act.docx")
-		if request.user.username == "qaztehna":
-			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act.docx")
-		else:
-			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_qaz.docx")
-		
-		act.replace_pic("sigtest1.png", obj.creator.sign)
-		act.replace_pic("vendor_sign.png", profile.seal)
+		act_path, contract_path = get_act_document_paths(obj)
+		act = DocxTemplate(BASE_DIR / "media/ref/act.docx")
+
+		replace_pic_if_present(act, "sigtest1.png", obj.creator.sign)
+		replace_pic_if_present(act, "vendor_sign.png", profile.seal)
 		act.render(model)
-		act.save(BASE_DIR / f"media/act/Акт_{obj.number}){obj.frln} - {obj.carVincode}.docx")
-		convert_to(BASE_DIR / f"media/act/Акт_{obj.number}){obj.frln} - {obj.carVincode}.docx")
+		act.save(act_path)
+		act_pdf_path = convert_to(act_path)
 
 
 		if request.user.username == "qaztehna":
@@ -348,16 +368,16 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		else:
 			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_contract.docx")
 
-		act_contract.replace_pic("sigtest1.png", profile.sign)
-		act_contract.replace_pic("vendor_sign.png", profile.seal)
+		replace_pic_if_present(act_contract, "sigtest1.png", profile.sign or obj.creator.sign)
+		replace_pic_if_present(act_contract, "vendor_sign.png", profile.seal)
 		act_contract.render(model)
-		act_contract.save(BASE_DIR / f"media/act/Договор_{obj.number}.docx")
-		convert_to(BASE_DIR / f"media/act/Договор_{obj.number}.docx")
+		act_contract.save(contract_path)
+		contract_pdf_path = convert_to(contract_path)
 
 		
 
-		obj.act =  f"act/Акт_{obj.number}){obj.frln} - {obj.carVincode}.pdf"
-		obj.contract =  f"act/Договор_{obj.number}.pdf"
+		obj.act = act_pdf_path.relative_to(settings.MEDIA_ROOT).as_posix()
+		obj.contract = contract_pdf_path.relative_to(settings.MEDIA_ROOT).as_posix()
 		obj.isClose = True
 
 		super().save_model(request, obj, form, change)
