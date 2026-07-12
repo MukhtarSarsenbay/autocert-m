@@ -44,6 +44,8 @@ DEBUG = env_bool('DJANGO_DEBUG', True)
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ["cms.labauto.kz", "88.204.128.70"])
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS', [])
+CSRF_COOKIE_NAME = os.getenv('DJANGO_CSRF_COOKIE_NAME', 'kaspicert_csrftoken')
+SESSION_COOKIE_NAME = os.getenv('DJANGO_SESSION_COOKIE_NAME', 'kaspicert_sessionid')
 
 if env_bool('DJANGO_SECURE_PROXY_SSL_HEADER', False):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

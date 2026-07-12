@@ -14,6 +14,7 @@ from pathlib import Path
 from .models import TestLog
 from subuser.models import SubUser
 from cert.utils import convert_to
+from .services import get_or_create_testlog_creator
 
 
 
@@ -94,38 +95,6 @@ def _can_edit_testlog_obj(user, obj):
 
 def _can_delete_testlog_obj(user, obj):                                                                                                                                                                
     return _can_edit_testlog_obj(user, obj) 
-
-def _get_creator_for_superuser(user, creator_id=None):
-    if creator_id:
-        creator = SubUser.objects.filter(id=creator_id).first()
-        if creator:
-            return creator
-    creator = SubUser.objects.filter(creator=user, is_active=True).order_by("id").first()
-    if creator:
-        return creator
-    creator = SubUser.objects.filter(creator=user).order_by("id").first()
-    if creator:
-        if not creator.is_active:
-            creator.is_active = True
-            creator.save(update_fields=["is_active"])
-        return creator
-
-    base_username = f"{user.username}_testlog"[:140]
-    username = base_username
-    suffix = 1
-    while SubUser.objects.filter(username=username).exists():
-        suffix += 1
-        username = f"{base_username}_{suffix}"[:150]
-
-    return SubUser.objects.create_user(
-        username=username,
-        password=None,
-        creator=user,
-        is_active=True,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        email=user.email or "",
-    )
 
 def badge_callback_testlog(request):
     if not _can_access_testlog(request.user):                                                                                                                                                          
@@ -436,7 +405,7 @@ def form_create(request):
             obj = TestLog.objects.create(creator=request.user)                                                                                                                                         
         elif request.user.is_superuser:                                                                                                                                                                
             creator_id = request.POST.get("creator_id")                                                                                                                                                
-            creator = _get_creator_for_superuser(request.user, creator_id)                                                                                                                             
+            creator, _ = get_or_create_testlog_creator(request.user, creator_id)
             if creator is None:                                                                                                                                                                        
                 return HttpResponse("No active SubUser found for superuser", status=400)                                                                                                               
             obj = TestLog.objects.create(creator=creator)                                                                                                                                              
