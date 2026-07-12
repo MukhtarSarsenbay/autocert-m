@@ -90,6 +90,7 @@ jobs:
             docker compose ps
 
             docker compose exec -T web python manage.py shell -c "from django.conf import settings; print(f'Runtime cookies: {settings.CSRF_COOKIE_NAME}, {settings.SESSION_COOKIE_NAME}')"
+            docker compose exec -T web python manage.py audit_certificate_media --sbkts B5_123
             if command -v nginx >/dev/null 2>&1; then
               if [ "$(id -u)" -eq 0 ]; then
                 nginx -T 2>&1 | grep -E 'configuration file|server_name|listen|proxy_pass' || true
