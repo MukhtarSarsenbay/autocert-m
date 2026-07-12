@@ -4,12 +4,17 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management import call_command
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 
 from subuser.models import SubUser
 
 from .models import TestLog
 from .services import get_or_create_testlog_creator
+
+
+class MediaSettingsTests(SimpleTestCase):
+    def test_media_url_is_absolute(self):
+        self.assertEqual(settings.MEDIA_URL, "/media/")
 
 
 class TestLogCreatorTests(TestCase):
