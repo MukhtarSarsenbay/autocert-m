@@ -10,6 +10,9 @@ concurrency:
   group: kaspicert-deploy
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to server
@@ -18,12 +21,15 @@ jobs:
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_SSH_PORT || 22 }}
-          script_stop: true
+          envs: GH_TOKEN,REPOSITORY
           command_timeout: 30m
           script: |
             set -eu
@@ -35,7 +41,10 @@ jobs:
               exit 1
             fi
 
-            git fetch --prune origin main
+            git remote set-url origin "https://github.com/${REPOSITORY}.git"
+            git_auth_header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $git_auth_header" fetch --prune origin main
+            unset git_auth_header GH_TOKEN
             git reset --hard origin/main
 
             if [ ! -f .env ]; then
