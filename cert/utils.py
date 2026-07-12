@@ -59,6 +59,7 @@ def convert_to(path, timeout=None):
                 if not first_bytes.startswith(b"%PDF-"):
                     raise OSError("PDF converter returned an invalid response")
 
+                temporary_path.chmod(0o644)
                 temporary_path.replace(destination_path)
                 temporary_path = None
     except requests.RequestException as exc:

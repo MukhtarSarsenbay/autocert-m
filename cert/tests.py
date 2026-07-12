@@ -28,6 +28,7 @@ class PdfConversionTests(SimpleTestCase):
 
         self.assertEqual(pdf_path, self.docx_path.with_suffix(".pdf"))
         self.assertEqual(pdf_path.read_bytes(), b"%PDF-1.7\ncontent")
+        self.assertEqual(pdf_path.stat().st_mode & 0o777, 0o644)
         post.assert_called_once()
         _, kwargs = post.call_args
         self.assertEqual(
