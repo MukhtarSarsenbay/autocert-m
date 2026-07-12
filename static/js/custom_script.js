@@ -33,16 +33,23 @@ function calculatePercentageDifference(value1, value2) {
 }
 
 function getCSRFToken() {
-    let cookieValue = null;
+	const formToken = document.querySelector('input[name="csrfmiddlewaretoken"]');
+	if (formToken && formToken.value) {
+		return formToken.value;
+	}
+
     const cookies = document.cookie.split(';');
     for (let i = 0; i < cookies.length; i++) {
         const cookie = cookies[i].trim();
-        if (cookie.startsWith('csrftoken=')) {
-            cookieValue = cookie.substring('csrftoken='.length);
-            break;
-        }
+		const separator = cookie.indexOf('=');
+		if (separator === -1) continue;
+
+		const name = cookie.substring(0, separator);
+		if (name === 'csrftoken' || name.endsWith('_csrftoken')) {
+			return decodeURIComponent(cookie.substring(separator + 1));
+		}
     }
-    return cookieValue;
+	return null;
 }
 
 function csrfSafeMethod(method) {
@@ -403,7 +410,17 @@ $( document ).ready(function() {
   		//alert("Данные о погоде успешно получено")
 	});
 
-	$("#getuser").on( "click", function() {
+	$("#getuser").on( "click", function(event) {
+		event.preventDefault();
+		const button = $(this);
+		const username = $("#id_personEmail").val().trim();
+		const password = $("#id_personPassword").val();
+		if (!username || !password) {
+			alert("Введите почту и пароль для входа в ЕКТРМ");
+			return;
+		}
+
+		button.css("pointer-events", "none");
     	$.ajax(
         	{
             	url: "/api/getuser/",
@@ -416,16 +433,25 @@ $( document ).ready(function() {
     			},
             	method: "post",
             	data: {	
-                	"username": $("#id_personEmail").val(),
-                	"password": $("#id_personPassword").val()
+					"username": username,
+					"password": password
                 },
             	success: function(result){
     				$("#id_lastName").val(result.lastname);
         			$("#id_firstName").val(result.firstname);
                 	$("#id_middleName").val(result.patronymic);
                 	$("#id_personId").val(result.code.replace("IIN", ""));
-                	//console.log(result);
-                },
+					alert("Данные из ЕКТРМ получены");
+				},
+				error: function(xhr) {
+					const message = xhr.responseJSON && xhr.responseJSON.error
+						? xhr.responseJSON.error
+						: "Не удалось получить данные из ЕКТРМ";
+					alert(message);
+				},
+				complete: function() {
+					button.css("pointer-events", "");
+				}
   		});
     
   		//alert("Данные о погоде успешно получено")

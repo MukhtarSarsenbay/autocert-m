@@ -213,21 +213,49 @@ class getCarView(APIView):
 		return Response(None, status=status.HTTP_400_BAD_REQUEST)
 
 class getUserView(APIView):
-	permission_classes = []
+	permission_classes = [permissions.IsAuthenticated]
 	
 	def post(self, request, format=None):
-		username = request.data.get("username")
-		password = request.data.get("password")
+		username = (request.data.get("username") or "").strip()
+		password = request.data.get("password") or ""
+		if not username or not password:
+			return Response(
+				{"error": "Введите почту и пароль для входа в ЕКТРМ."},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
 
-		res = requests.get(
-        	"https://techreg.gov.kz/Synergy/rest/api/person/auth",
-        	verify=False,
-        	headers=headers,
-        	auth = HTTPBasicAuth(username, password),
-		)
-		if res.status_code == 200:
+		try:
+			res = requests.get(
+				"https://techreg.gov.kz/Synergy/rest/api/person/auth",
+				verify=False,
+				headers={"Accept": "application/json"},
+				auth=HTTPBasicAuth(username, password),
+				timeout=(5, 20),
+			)
+		except requests.RequestException:
+			return Response(
+				{"error": "ЕКТРМ сейчас недоступен. Повторите попытку позже."},
+				status=status.HTTP_502_BAD_GATEWAY,
+			)
+
+		if res.status_code in (401, 403):
+			return Response(
+				{"error": "ЕКТРМ отклонил почту или пароль."},
+				status=status.HTTP_401_UNAUTHORIZED,
+			)
+		if res.status_code != 200:
+			return Response(
+				{"error": f"ЕКТРМ вернул ошибку {res.status_code}."},
+				status=status.HTTP_502_BAD_GATEWAY,
+			)
+
+		try:
 			return Response(res.json(), status=status.HTTP_200_OK)
-		return Response(None, status=status.HTTP_400_BAD_REQUEST)
+		except requests.exceptions.JSONDecodeError:
+			return Response(
+				{"error": "ЕКТРМ вернул некорректный ответ."},
+				status=status.HTTP_502_BAD_GATEWAY,
+			)
 
 
 class setSignatureView(APIView):
