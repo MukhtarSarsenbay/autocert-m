@@ -15,10 +15,29 @@ services:
       timeout: 5s
       retries: 5
 
+  converter:
+    image: gotenberg/gotenberg:8.32.0-libreoffice
+    command:
+      - gotenberg
+      - --api-timeout=120s
+      - --libreoffice-auto-start=true
+      - --libreoffice-restart-after=50
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
   web:
     build: .
     depends_on:
       db:
+        condition: service_healthy
+      converter:
         condition: service_healthy
     environment:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
@@ -36,6 +55,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loc25387}
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
+      PDF_CONVERTER_URL: ${PDF_CONVERTER_URL:-http://converter:3000}
+      PDF_CONVERTER_TIMEOUT: ${PDF_CONVERTER_TIMEOUT:-120}
       CORS_ALLOW_ALL_ORIGINS: ${CORS_ALLOW_ALL_ORIGINS:-0}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-1}
     expose:

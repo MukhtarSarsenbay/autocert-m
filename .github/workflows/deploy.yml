@@ -54,12 +54,13 @@ jobs:
 
             mkdir -p media postgres_data
 
-            docker compose pull db proxy || true
+            docker compose pull db proxy converter
             docker compose up -d --build --remove-orphans
-            docker compose exec -T web python manage.py test testlog --settings=labauto.test_settings --verbosity 1
+            docker compose exec -T web python manage.py test testlog cert --settings=labauto.test_settings --verbosity 1
             docker compose exec -T web python manage.py migrate --noinput
             docker compose exec -T web python manage.py ensure_testlog_creators
             docker compose exec -T web python manage.py check
+            docker compose exec -T web python manage.py check_pdf_converter
             web_container_id="$(docker compose ps -q web)"
             web_health="starting"
             for _ in $(seq 1 30); do
@@ -90,13 +91,3 @@ jobs:
             docker compose ps
 
             docker compose exec -T web python manage.py shell -c "from django.conf import settings; print(f'Runtime cookies: {settings.CSRF_COOKIE_NAME}, {settings.SESSION_COOKIE_NAME}')"
-            docker compose exec -T web python manage.py audit_certificate_media --sbkts B5_123
-            if command -v nginx >/dev/null 2>&1; then
-              if [ "$(id -u)" -eq 0 ]; then
-                nginx -T 2>&1 | grep -E 'configuration file|server_name|listen|proxy_pass' || true
-              elif sudo -n true 2>/dev/null; then
-                sudo -n nginx -T 2>&1 | grep -E 'configuration file|server_name|listen|proxy_pass' || true
-              else
-                echo "Nginx configuration is not readable by the deploy user."
-              fi
-            fi
