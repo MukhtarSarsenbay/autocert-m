@@ -1,11 +1,42 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import requests
 from django.test import SimpleTestCase, override_settings
 
 from cert.utils import convert_to
+from cert.services import resolve_certificate_creator
+from subuser.models import SubUser
+
+
+class CertificateCreatorResolutionTests(SimpleTestCase):
+    def test_keeps_existing_creator(self):
+        existing_creator = object()
+        certificate = MagicMock(creator_id=17, creator=existing_creator)
+
+        creator = resolve_certificate_creator(certificate, object())
+
+        self.assertIs(creator, existing_creator)
+        certificate.save.assert_not_called()
+
+    def test_assigns_current_subuser_to_legacy_certificate(self):
+        certificate = MagicMock(creator_id=None)
+        request_user = SubUser(username="employee")
+
+        creator = resolve_certificate_creator(certificate, request_user)
+
+        self.assertIs(creator, request_user)
+        self.assertIs(certificate.creator, request_user)
+        certificate.save.assert_called_once_with(update_fields=["creator"])
+
+    def test_does_not_guess_creator_for_company_account(self):
+        certificate = MagicMock(creator_id=None)
+
+        creator = resolve_certificate_creator(certificate, object())
+
+        self.assertIsNone(creator)
+        certificate.save.assert_not_called()
 
 
 @override_settings(

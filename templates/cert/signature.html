@@ -111,9 +111,12 @@
                         	//alert("Успешно загружено подпись!")
                         	window.close()
                         },
-                    	error: function(){
-   						 	alert('Ошибка подпись не загружено, повторите еще раз!');
-  						}
+						error: function(xhr){
+							const message = xhr.responseJSON && xhr.responseJSON.error
+								? xhr.responseJSON.error
+								: 'Ошибка: подпись не загружена. Повторите ещё раз.';
+							alert(message);
+						}
                         }
                     );
 				})

@@ -30,6 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 
 from .utils import convert_to
+from .services import resolve_certificate_creator
 
 from requests.auth import HTTPBasicAuth
 
@@ -64,7 +65,6 @@ month_to_string = {
 	11: "ноября",
 	12: "декабря"
 }
-
 def set_img(tag, path, document):
     for par in document.paragraphs:
         if tag in par.text:
@@ -270,11 +270,23 @@ class setSignatureView(APIView):
 			if len(cert) > 0:
 				model = CertModelSerializer(cert[0]).data
 
-				signature = request.data.get("signature")
+				signature = request.FILES.get("signature")
 
-				if len(signature) > 0:
+				if signature:
 
 					obj = Certificates.objects.get(id = model.get("id"))
+					creator = resolve_certificate_creator(obj, request.user)
+					if creator is None:
+						return Response(
+							{"error": "У сертификата не указан ответственный сотрудник."},
+							status=status.HTTP_400_BAD_REQUEST,
+						)
+					if not creator.sign:
+						return Response(
+							{"error": "У ответственного сотрудника не загружена подпись."},
+							status=status.HTTP_400_BAD_REQUEST,
+						)
+
 					obj.signature = signature
 					obj.save()
 					# profile = Profile.objects.get(user=obj.creator.creator)
@@ -298,8 +310,8 @@ class setSignatureView(APIView):
 					model["conclusion_number"] = obj.conclusionNumber
 					
 
-					model["CfirstName"] = obj.creator.first_name
-					model["ClastName"] = obj.creator.last_name
+					model["CfirstName"] = creator.first_name
+					model["ClastName"] = creator.last_name
 					model["day"] = obj.certCreateDate.day
 					model["month"] = month_to_string.get(obj.certCreateDate.month)
 					model["year"] = obj.certCreateDate.year
@@ -361,13 +373,13 @@ class setSignatureView(APIView):
 
 					if obj.carCategory in ["O1", "O2", "O3", "O4"]:
 						experts = DocxTemplate(BASE_DIR / f"media/ref/tex_expert_p.docx")
-						experts.replace_pic("sign.png", obj.creator.sign)
+						experts.replace_pic("sign.png", creator.sign)
 						experts.render(model)
 						experts.save(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 					else:
 						experts = DocxTemplate(BASE_DIR / f"media/ref/tex_expert.docx")
-						experts.replace_pic("sign.png", obj.creator.sign)
+						experts.replace_pic("sign.png", creator.sign)
 						experts.render(model)
 						experts.save(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
@@ -375,20 +387,20 @@ class setSignatureView(APIView):
 					
 					if obj.carCategory in ["O1", "O2", "O3", "O4"]:
 						protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_o.docx")
-						protocol.replace_pic("sign.png", copy.deepcopy(obj.creator.sign))
+						protocol.replace_pic("sign.png", copy.deepcopy(creator.sign))
 						protocol.render(model)
 						protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 					else:
 						if obj.testFuelType in ["b", "g", "d"]:
 							protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_b.docx")
-							protocol.replace_pic("sign.png", copy.deepcopy(obj.creator.sign))
+							protocol.replace_pic("sign.png", copy.deepcopy(creator.sign))
 							protocol.render(model)
 							protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 							convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						elif obj.testFuelType == "e":
 							protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_b.docx")
-							protocol.replace_pic("sign.png", copy.deepcopy(obj.creator.sign))
+							protocol.replace_pic("sign.png", copy.deepcopy(creator.sign))
 							protocol.render(model)
 							protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 							convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
@@ -416,7 +428,7 @@ class setSignatureView(APIView):
 					new_tpl = BASE_DIR / "media/ref/protocol_new.docx"                                                                                                                                                                       
 					if new_tpl.exists():                                                                                                                                                                                                     
 						protocol_new = DocxTemplate(new_tpl)                                                                                                                                                                                 
-						protocol_new.replace_pic("sign.png", copy.deepcopy(obj.creator.sign))                                                                                                                                                
+						protocol_new.replace_pic("sign.png", copy.deepcopy(creator.sign))
 						attach_testlog_fields(model, obj)                                                                                                                                                                                    
 						protocol_new.render(model)                                                                                                                                                                                           
 																																																											
