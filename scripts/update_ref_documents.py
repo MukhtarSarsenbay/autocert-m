@@ -31,6 +31,12 @@ NEW_ATTESTATION_DATES = (
     "действителен до «4» мая 2031 года.\n"
     "ГОСТ ISO/ІЕС 17025-2019"
 )
+KAZAKH_ATTESTATION = (
+    "№ KZ.T.06.3077\n"
+    "2026 ж. «4» мамырдан бастап\n"
+    "2031 ж. «4» мамырға дейін жарамды\n"
+    "ГОСТ ISO/ІЕС 17025-2019"
+)
 
 # Long, context-specific replacements must run before the short fallbacks.
 REPLACEMENTS = [
@@ -42,7 +48,7 @@ REPLACEMENTS = [
     (f"Юр. адрес: {PHYSICAL_ADDRESS}", f"Юр. адрес: {LEGAL_ADDRESS}"),
     (
         "№ KZ.T.16.Е1185 аккредитация аттестаты 2022 ж. «15» шілдеден",
-        NEW_ATTESTATION,
+        KAZAKH_ATTESTATION,
     ),
     ("№ KZ.T.16.Е1185 до 15.07.2027 г.", NEW_ATTESTATION),
     (
@@ -98,6 +104,7 @@ W_R = f"{{{W_NS}}}r"
 W_T = f"{{{W_NS}}}t"
 W_BR = f"{{{W_NS}}}br"
 W_TR = f"{{{W_NS}}}tr"
+W_TC = f"{{{W_NS}}}tc"
 A_P = f"{{{A_NS}}}p"
 A_T = f"{{{A_NS}}}t"
 TEXT_TAGS = {W_T, A_T}
@@ -170,6 +177,19 @@ def _replace_legal_address_table_rows(root, counts):
     return changed
 
 
+def _replace_kazakh_accreditation_cell(root, counts):
+    changed = False
+    current_block = NEW_ATTESTATION.replace("\n", "")
+    replacement = [(current_block, KAZAKH_ATTESTATION)]
+    for cell in root.iter(W_TC):
+        cell_text = "".join(node.text or "" for node in _text_nodes(cell))
+        if "Мемлекеттік техникалық реттеу жүйесі" not in cell_text:
+            continue
+        for paragraph in cell.iter(W_P):
+            changed = _replace_in_container(paragraph, counts, replacement) or changed
+    return changed
+
+
 def _set_space_preserve(text_node):
     text = text_node.text or ""
     if text[:1].isspace() or text[-1:].isspace():
@@ -217,6 +237,7 @@ def _update_xml(data, counts, document_name):
     for paragraph in root.iter():
         if paragraph.tag in PARAGRAPH_TAGS:
             changed = _replace_in_container(paragraph, counts, replacements) or changed
+    changed = _replace_kazakh_accreditation_cell(root, counts) or changed
     if not changed:
         return data, False
     _convert_newlines_to_word_breaks(root)
