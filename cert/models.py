@@ -13,7 +13,7 @@ class Certificates(models.Model):
 	)
 
 	TEST_LOCATIONS = (
-		("kolik", "РК, г. Шымкент, Каратауский район, Квартал 216, уч. 312"),
+		("kolik", "Атырауская область, город Атырау, микрорайон Атырау, 89б"),
 	)
 
 	TYPE_CATEGORY = (
