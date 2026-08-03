@@ -2,16 +2,23 @@ from __future__ import annotations
 
 import hashlib
 import os
+from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from lxml import etree
+from PIL import Image, ImageChops, ImageOps
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 REF_DIR = BASE_DIR / "media" / "ref"
 NCA_IMAGE = REF_DIR / "nca_kz_t_06_3077.png"
+DIRECTOR_SIGNATURE_IMAGE = REF_DIR / "director_sign.png"
+STAMP_IMAGE = REF_DIR / "pechat.png"
+
+DIRECTOR_FULL_NAME = "Сайдхакимов Бахтияр Абдухамидович"
+DIRECTOR_FULL_NAME_GENITIVE = "Сайдхакимова Бахтияра Абдухамидовича"
 
 OLD_NCA_SHA256_VALUES = {
     "026fe8fac90aae0740714129d7a67a2deeb96c836f6b6afd57abb202060bee30",
@@ -40,6 +47,10 @@ KAZAKH_ATTESTATION = (
 
 # Long, context-specific replacements must run before the short fallbacks.
 REPLACEMENTS = [
+    ("Садуахасов Алихан Бахитович", DIRECTOR_FULL_NAME),
+    ("Садуахасов А.Б .", DIRECTOR_FULL_NAME),
+    ("Садуахасов А.Б.", DIRECTOR_FULL_NAME),
+    ("Садуахасов А .Б.", DIRECTOR_FULL_NAME),
     (
         f"Юридический адрес: {PHYSICAL_ADDRESS}",
         f"Юридический адрес: {LEGAL_ADDRESS}",
@@ -92,8 +103,90 @@ REPLACEMENTS = [
 ]
 
 DOCUMENT_REPLACEMENTS = {
+    "act_contract_qaz.docx": [
+        (
+            "в лице директора действующий",
+            f"в лице директора {DIRECTOR_FULL_NAME_GENITIVE}, действующего",
+        ),
+    ],
     # This address is an unlabeled requisites line in the customer contract.
-    "contract.docx": [(PHYSICAL_ADDRESS, LEGAL_ADDRESS)],
+    "contract.docx": [
+        (
+            "в лице директора Досмайлова Н.А., действующей",
+            f"в лице директора {DIRECTOR_FULL_NAME_GENITIVE}, действующего",
+        ),
+        ("Директор: Досмайлов Н.А.", f"Директор: {DIRECTOR_FULL_NAME}"),
+        (PHYSICAL_ADDRESS, LEGAL_ADDRESS),
+    ],
+    "protocol_add_С-00395.docx": [
+        ("Николаевич Валерий", DIRECTOR_FULL_NAME),
+    ],
+    "protocol_new.docx": [
+        ("{{ClastName}} {{CfirstName}}", DIRECTOR_FULL_NAME),
+    ],
+}
+
+# Images that belong to the laboratory director are fixed in the templates.
+# Customer and test-specialist signatures use different placeholders and must
+# remain dynamic.
+DOCUMENT_IMAGE_REPLACEMENTS = {
+    "act.docx": {
+        "word/media/image1.png": "stamp",
+        "word/media/image2.png": "director_signature",
+    },
+    "act_contract.docx": {
+        "word/media/image1.png": "director_signature",
+        "word/media/image2.png": "stamp",
+    },
+    "act_contract_qaz.docx": {
+        "word/media/image1.png": "stamp",
+        "word/media/image2.png": "director_signature",
+    },
+    "act_qaz.docx": {
+        "word/media/image1.png": "stamp",
+        "word/media/image2.png": "director_signature",
+    },
+    "conclusion.docx": {
+        "word/media/image1.png": "director_signature",
+        "word/media/image2.png": "director_signature",
+    },
+    "contract.docx": {
+        "word/media/image1.png": "director_signature_and_stamp",
+    },
+    "decision.docx": {
+        "word/media/image2.png": "director_signature",
+        "word/media/image3.jpeg": "stamp",
+    },
+    "journal_С-00395.docx": {
+        "word/media/image1.png": "director_signature",
+        "word/media/image2.jpeg": "stamp",
+    },
+    "logbook.docx": {
+        "word/media/image2.png": "director_signature",
+        "word/media/image3.jpeg": "stamp",
+    },
+    "protocol_add_С-00395.docx": {
+        "word/media/image4.png": "director_signature",
+    },
+    "protocol_b.docx": {
+        "word/media/image3.png": "director_signature",
+        "word/media/image4.jpeg": "stamp",
+    },
+    "protocol_new.docx": {
+        "word/media/image4.png": "director_signature",
+    },
+    "protocol_o.docx": {
+        "word/media/image3.png": "director_signature",
+        "word/media/image4.jpeg": "stamp",
+    },
+    "tex_expert.docx": {
+        "word/media/image3.png": "director_signature",
+        "word/media/image4.jpeg": "stamp",
+    },
+    "tex_expert_p.docx": {
+        "word/media/image3.png": "director_signature",
+        "word/media/image4.jpeg": "stamp",
+    },
 }
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -190,6 +283,29 @@ def _replace_kazakh_accreditation_cell(root, counts):
     return changed
 
 
+def _format_decision_director_name(root, document_name):
+    if document_name != "decision.docx":
+        return False
+
+    for paragraph in root.iter(W_P):
+        nodes = _text_nodes(paragraph)
+        paragraph_text = "".join(node.text or "" for node in nodes)
+        if "ТОО «Kaspisert»" not in paragraph_text:
+            continue
+        for node in nodes:
+            if node.text != DIRECTOR_FULL_NAME:
+                continue
+            run = node.getparent()
+            if run is None or run.tag != W_R:
+                continue
+            previous_element = node.getprevious()
+            if previous_element is not None and previous_element.tag == W_BR:
+                return False
+            node.addprevious(etree.Element(W_BR))
+            return True
+    return False
+
+
 def _set_space_preserve(text_node):
     text = text_node.text or ""
     if text[:1].isspace() or text[-1:].isspace():
@@ -238,13 +354,114 @@ def _update_xml(data, counts, document_name):
         if paragraph.tag in PARAGRAPH_TAGS:
             changed = _replace_in_container(paragraph, counts, replacements) or changed
     changed = _replace_kazakh_accreditation_cell(root, counts) or changed
+    changed = _format_decision_director_name(root, document_name) or changed
     if not changed:
         return data, False
     _convert_newlines_to_word_breaks(root)
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True), True
 
 
-def _update_document(document, replacement_image):
+def _crop_white_margins(image):
+    rgb_image = image.convert("RGB")
+    white_background = Image.new("RGB", rgb_image.size, "white")
+    difference = ImageChops.difference(rgb_image, white_background).convert("L")
+    visible_pixels = difference.point(lambda value: 255 if value > 12 else 0)
+    bounding_box = visible_pixels.getbbox()
+    return rgb_image.crop(bounding_box) if bounding_box else rgb_image
+
+
+def _save_image(image, image_format):
+    output = BytesIO()
+    if image_format in {"JPEG", "JPG"}:
+        image.convert("RGB").save(output, format="JPEG", quality=95)
+    else:
+        image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _fit_asset_to_embedded_image(asset, embedded_image):
+    with Image.open(BytesIO(embedded_image)) as target:
+        target_size = target.size
+        target_format = target.format or "PNG"
+    with Image.open(BytesIO(asset)) as source:
+        cropped_source = _crop_white_margins(source)
+
+    padding = max(2, round(min(target_size) * 0.04))
+    available_size = (
+        max(1, target_size[0] - padding * 2),
+        max(1, target_size[1] - padding * 2),
+    )
+    fitted_source = ImageOps.contain(
+        cropped_source,
+        available_size,
+        method=Image.Resampling.LANCZOS,
+    )
+    canvas = Image.new("RGB", target_size, "white")
+    position = (
+        (target_size[0] - fitted_source.width) // 2,
+        (target_size[1] - fitted_source.height) // 2,
+    )
+    canvas.paste(fitted_source, position)
+    return _save_image(canvas, target_format)
+
+
+def _compose_director_signature_and_stamp(signature, stamp, embedded_image):
+    with Image.open(BytesIO(embedded_image)) as target:
+        target_size = target.size
+        target_format = target.format or "PNG"
+    with Image.open(BytesIO(signature)) as signature_image:
+        cropped_signature = _crop_white_margins(signature_image)
+    with Image.open(BytesIO(stamp)) as stamp_image:
+        cropped_stamp = _crop_white_margins(stamp_image)
+
+    canvas = Image.new("RGB", target_size, "white")
+    outer_padding = max(3, round(min(target_size) * 0.03))
+    gap = outer_padding
+    available_width = target_size[0] - outer_padding * 2 - gap
+    signature_width = round(available_width * 0.42)
+    stamp_width = available_width - signature_width
+    available_height = target_size[1] - outer_padding * 2
+
+    fitted_signature = ImageOps.contain(
+        cropped_signature,
+        (signature_width, available_height),
+        method=Image.Resampling.LANCZOS,
+    )
+    fitted_stamp = ImageOps.contain(
+        cropped_stamp,
+        (stamp_width, available_height),
+        method=Image.Resampling.LANCZOS,
+    )
+    signature_position = (
+        outer_padding + (signature_width - fitted_signature.width) // 2,
+        (target_size[1] - fitted_signature.height) // 2,
+    )
+    stamp_area_left = outer_padding + signature_width + gap
+    stamp_position = (
+        stamp_area_left + (stamp_width - fitted_stamp.width) // 2,
+        (target_size[1] - fitted_stamp.height) // 2,
+    )
+    canvas.paste(fitted_signature, signature_position)
+    canvas.paste(fitted_stamp, stamp_position)
+    return _save_image(canvas, target_format)
+
+
+def _replace_document_image(document_name, entry_name, embedded_image, assets):
+    replacement_role = DOCUMENT_IMAGE_REPLACEMENTS.get(document_name, {}).get(entry_name)
+    if replacement_role == "director_signature":
+        return _fit_asset_to_embedded_image(assets["director_signature"], embedded_image)
+    if replacement_role == "stamp":
+        return _fit_asset_to_embedded_image(assets["stamp"], embedded_image)
+    if replacement_role == "director_signature_and_stamp":
+        return _compose_director_signature_and_stamp(
+            assets["director_signature"],
+            assets["stamp"],
+            embedded_image,
+        )
+    return embedded_image
+
+
+def _update_document(document, assets):
     counts = {}
     image_replacements = 0
     changed_parts = 0
@@ -261,12 +478,20 @@ def _update_document(document, replacement_image):
             updated_data, changed = _update_xml(data, counts, document.name)
             changed_parts += int(changed)
         elif info.filename.startswith("word/media/"):
-            if hashlib.sha256(data).hexdigest() in OLD_NCA_SHA256_VALUES:
-                updated_data = replacement_image
+            updated_data = _replace_document_image(
+                document.name,
+                info.filename,
+                data,
+                assets,
+            )
+            if updated_data != data:
+                image_replacements += 1
+            elif hashlib.sha256(data).hexdigest() in OLD_NCA_SHA256_VALUES:
+                updated_data = assets["nca"]
                 image_replacements += 1
         updated_entries.append((info, updated_data))
 
-    if not counts and not image_replacements:
+    if not counts and not image_replacements and not changed_parts:
         return None
 
     with NamedTemporaryFile(
@@ -301,13 +526,19 @@ def _update_document(document, replacement_image):
 
 
 def main():
-    if not NCA_IMAGE.is_file():
-        raise FileNotFoundError(NCA_IMAGE)
-    replacement_image = NCA_IMAGE.read_bytes()
+    required_images = {
+        "nca": NCA_IMAGE,
+        "director_signature": DIRECTOR_SIGNATURE_IMAGE,
+        "stamp": STAMP_IMAGE,
+    }
+    missing_images = [path for path in required_images.values() if not path.is_file()]
+    if missing_images:
+        raise FileNotFoundError(", ".join(str(path) for path in missing_images))
+    assets = {name: path.read_bytes() for name, path in required_images.items()}
 
     updated = {}
     for document in sorted(REF_DIR.glob("*.docx")):
-        result = _update_document(document, replacement_image)
+        result = _update_document(document, assets)
         if result:
             updated[document.name] = result
 

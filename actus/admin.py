@@ -59,6 +59,8 @@ month_to_string = {
 	12: "декабря"
 }
 
+DIRECTOR_FULL_NAME = "Сайдхакимов Бахтияр Абдухамидович"
+
 
 def get_act_document_paths(obj):
 	output_dir = Path(settings.MEDIA_ROOT) / "act"
@@ -74,11 +76,6 @@ def get_act_document_paths(obj):
 		output_dir / f"{act_name}.docx",
 		output_dir / f"{contract_name}.docx",
 	)
-
-
-def replace_pic_if_present(template, placeholder, image):
-	if image:
-		template.replace_pic(placeholder, image)
 
 
 def get_default_subuser(user, create=False):
@@ -341,7 +338,7 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		model["vendor_uid"] = profile.uid
 		model["vendor_fil"] = profile.fil
 		model["vendor_bik"] = profile.bik
-		model["vendor_frln"] = f"{company_user.last_name} {company_user.first_name}"
+		model["vendor_frln"] = DIRECTOR_FULL_NAME
 		
 		#model["personPublic"] = model["personPublic"].strftime("%d.%m.%Y")
 		model = {**model, **obj.button.__dict__}
@@ -356,8 +353,6 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		act_path, contract_path = get_act_document_paths(obj)
 		act = DocxTemplate(BASE_DIR / "media/ref/act.docx")
 
-		replace_pic_if_present(act, "sigtest1.png", obj.creator.sign)
-		replace_pic_if_present(act, "vendor_sign.png", profile.seal)
 		act.render(model)
 		act.save(act_path)
 		act_pdf_path = convert_to(act_path)
@@ -368,8 +363,6 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		else:
 			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_contract.docx")
 
-		replace_pic_if_present(act_contract, "sigtest1.png", profile.sign or obj.creator.sign)
-		replace_pic_if_present(act_contract, "vendor_sign.png", profile.seal)
 		act_contract.render(model)
 		act_contract.save(contract_path)
 		contract_pdf_path = convert_to(contract_path)

@@ -355,9 +355,8 @@ class setSignatureView(APIView):
 					convert_to(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
 					
 					#тут
-					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")                                                                                                                                                                                                                                                        
-					conclusion.replace_pic("sigtest1.png", copy.deepcopy(obj.signature))  
-					conclusion.render(model)                                                                                                                                                      
+					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")
+					conclusion.render(model)
 					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx")                                                                                         
 					convert_to(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx") 
 
@@ -425,11 +424,10 @@ class setSignatureView(APIView):
 							model[n] = getattr(tl, n, "") if tl else ""   
 						model["test_depth"] = (getattr(tl, "tread_h_val", "") if tl else "") or ""
 					
-					new_tpl = BASE_DIR / "media/ref/protocol_new.docx"                                                                                                                                                                       
-					if new_tpl.exists():                                                                                                                                                                                                     
-						protocol_new = DocxTemplate(new_tpl)                                                                                                                                                                                 
-						protocol_new.replace_pic("sign.png", copy.deepcopy(creator.sign))
-						attach_testlog_fields(model, obj)                                                                                                                                                                                    
+					new_tpl = BASE_DIR / "media/ref/protocol_new.docx"
+					if new_tpl.exists():
+						protocol_new = DocxTemplate(new_tpl)
+						attach_testlog_fields(model, obj)
 						protocol_new.render(model)                                                                                                                                                                                           
 																																																											
 						out_docx = BASE_DIR / f"media/protocols_new/Протокол_новый_{model.get('sbkts')}.docx"                                                                                                                                
