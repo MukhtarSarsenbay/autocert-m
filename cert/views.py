@@ -356,6 +356,7 @@ class setSignatureView(APIView):
 					
 					#тут
 					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")
+					conclusion.replace_pic("sing.png", copy.deepcopy(obj.signature))
 					conclusion.render(model)
 					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx")                                                                                         
 					convert_to(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx") 

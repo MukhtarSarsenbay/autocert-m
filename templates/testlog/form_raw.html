@@ -1887,9 +1887,7 @@
 
   function mapOutdoorToCabinTemp(outdoorC){
     if(!Number.isFinite(outdoorC)) return null;
-    if(outdoorC <= -10) return rand(5, 6);
-    if(outdoorC >= 40) return rand(34, 35);
-    return clamp(outdoorC + rand(-0.9, 0.9), 5, 35);
+    return clamp(outdoorC, 5, 35);
   }
 
   function applyWeatherValues(current){
@@ -1903,7 +1901,7 @@
       tempVal = clamp(tempCurrent + rand(-0.4, 0.4), 5, 35);
     }
     if(!Number.isFinite(tempVal)){
-      tempVal = rand(8, 18);
+      tempVal = rand(5, 35);
     }
     setNumericField('temp_air', tempVal, 1);
 
@@ -1919,25 +1917,13 @@
   }
 
   function fetchCurrentWeather(){
-    return new Promise(function(resolve, reject){
-      if(!navigator.geolocation){
-        reject(new Error('geolocation unsupported'));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        function(pos){ resolve(pos.coords); },
-        function(err){ reject(err || new Error('geolocation failed')); },
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
-      );
-    }).then(function(coords){
-      var url = 'https://api.open-meteo.com/v1/forecast?latitude=' +
-        encodeURIComponent(coords.latitude) +
-        '&longitude=' + encodeURIComponent(coords.longitude) +
-        '&current=temperature_2m,relative_humidity_2m,surface_pressure';
-      return fetch(url).then(function(r){
-        if(!r.ok) throw new Error('weather http ' + r.status);
-        return r.json();
-      });
+    var url = 'https://api.open-meteo.com/v1/forecast' +
+      '?latitude=42.3155&longitude=69.5869' +
+      '&current=temperature_2m,relative_humidity_2m,surface_pressure' +
+      '&timezone=Asia%2FAlmaty';
+    return fetch(url).then(function(r){
+      if(!r.ok) throw new Error('weather http ' + r.status);
+      return r.json();
     }).then(function(data){
       return (data && data.current) ? data.current : {};
     });
@@ -3653,7 +3639,6 @@
 </body>
 
 </html>
-
 
 
 
