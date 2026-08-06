@@ -561,13 +561,23 @@ $( document ).ready(function() {
     	var height = 500
         var width = 500
         
-        var vin = $('#id_carVin').val()
+		var vin = $('#id_carVin').val()
+		const certificateIdMatch = window.location.pathname.match(/\/(\d+)\/change\/?$/);
+		if (!certificateIdMatch) {
+			alert('Сначала сохраните сертификат, затем откройте подпись.');
+			return;
+		}
+		const certificateId = certificateIdMatch[1];
     	
     	var top = parseInt((screen.availHeight) - height - 100);
     	var left = parseInt((screen.availWidth) - (width / 2));
     	var features = "location=1, status=1, scrollbars=1, width=" + width + ", height=" + height + ", top=" + top + ", left=" + left;
         console.log(vin);
-    	window.open(`/api/signature/?vin=${vin}`, "kad", features);
+		const signatureParams = new URLSearchParams({
+			certificate_id: certificateId,
+			vin: vin,
+		});
+		window.open(`/api/signature/?${signatureParams.toString()}`, "kad", features);
 	});
 
 // 	$("#getAll").on("click", function() {

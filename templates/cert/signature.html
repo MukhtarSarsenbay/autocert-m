@@ -30,6 +30,7 @@
 	<body>
 		<div>Подпись для клиента {{lastName}} {{firstName}} {{middleName}}</div>
     	<div id="vin">{{carVin}}</div>
+		<div id="certificate-id" hidden>{{id}}</div>
 
 		<div class="wrapper">
 			<canvas id="signature-pad" class="signature-pad" width=400 height=200>
@@ -93,6 +94,7 @@
                         'image/png'
                     );
                     const data = new FormData();
+                    data.append('certificate_id', $("#certificate-id").text());
                     data.append('vin', $("#vin").text());
                     data.append('signature', blob, 'sigtest.png');
 
@@ -112,9 +114,32 @@
                         contentType: false,
                         processData: false,
                         data: data,
-                        success: function() {
+                        success: function(result) {
+                            const expectedId = Number($("#certificate-id").text());
+                            const signedDocumentFields = [
+                                'application', 'contract', 'logbook', 'conclusion'
+                            ];
+                            const documentsUpdated = result && result.documents
+                                && signedDocumentFields.every(function(fieldName) {
+                                    const url = result.documents[fieldName] || '';
+                                    return url.includes('_' + result.signature_version + '.pdf');
+                                });
+                            if (
+                                !result
+                                || Number(result.certificate_id) !== expectedId
+                                || !documentsUpdated
+                            ) {
+                                button.prop('disabled', false).text('Подписать сигнатуру');
+                                alert('Подпись сохранена, но ссылки документов не обновились. Повторите ещё раз.');
+                                return;
+                            }
                             if (window.opener && !window.opener.closed) {
-                                window.opener.location.reload();
+                                const openerUrl = new URL(window.opener.location.href);
+                                openerUrl.searchParams.set(
+                                    '_signature',
+                                    result.signature_version || Date.now()
+                                );
+                                window.opener.location.replace(openerUrl.toString());
                             }
                             window.close();
                         },

@@ -31,7 +31,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 
 from .utils import convert_to
-from .services import build_signed_document_key, resolve_certificate_creator
+from .services import (
+	SignatureCertificateLookupError,
+	build_signed_document_key,
+	resolve_certificate_creator,
+	resolve_signature_certificate,
+)
 
 from requests.auth import HTTPBasicAuth
 
@@ -265,17 +270,24 @@ class setSignatureView(APIView):
 	parser_classes = (MultiPartParser, FormParser)
 
 	def post(self, request, format=None):
+		certificate_id = request.data.get("certificate_id")
 		vin = request.data.get('vin')
-		if vin is not None:
-			cert = Certificates.objects.filter(carVin = str(vin))
-			if len(cert) > 0:
-				model = CertModelSerializer(cert[0]).data
+		try:
+			obj = resolve_signature_certificate(
+				Certificates.objects, certificate_id=certificate_id, vin=vin
+			)
+		except SignatureCertificateLookupError as error:
+			return Response(
+				{"error": str(error)},
+				status=error.status_code,
+			)
 
-				signature = request.FILES.get("signature")
+		model = CertModelSerializer(obj).data
 
-				if signature:
+		signature = request.FILES.get("signature")
 
-					obj = Certificates.objects.get(id = model.get("id"))
+		if signature:
+
 					creator = resolve_certificate_creator(obj, request.user)
 					if creator is None:
 						return Response(
@@ -346,26 +358,34 @@ class setSignatureView(APIView):
 					application.replace_pic("sigtest1.png", BytesIO(client_signature))
 					application.render(model)
 					application.save(BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx")
-					convert_to(BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx")
+					application_pdf = convert_to(
+						BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx"
+					)
 
 					contract = DocxTemplate(BASE_DIR / f"media/ref/contract.docx")
 					contract.replace_pic("sign.png", BytesIO(client_signature))
 					contract.render(model)
 					contract.save(BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx")
-					convert_to(BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx")
+					contract_pdf = convert_to(
+						BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx"
+					)
 
 					logbook = DocxTemplate(BASE_DIR / f"media/ref/logbook.docx")
 					logbook.replace_pic("sign.png", BytesIO(client_signature))
 					logbook.render(model)
 					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
-					convert_to(BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
+					logbook_pdf = convert_to(
+						BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx"
+					)
 					
 					#тут
 					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")
 					conclusion.replace_pic("sing.png", BytesIO(client_signature))
 					conclusion.render(model)
 					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx")
-					convert_to(BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx")
+					conclusion_pdf = convert_to(
+						BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx"
+					)
 
 					journal_c00395 = DocxTemplate(BASE_DIR / "media/ref/journal_С-00395.docx")                                                                                    
 					journal_c00395.render(model)                                                                                                                                  
@@ -574,43 +594,64 @@ class setSignatureView(APIView):
 # 							pass
 
 
-					obj = Certificates.objects.get(id = model.get("id"))
-					obj.decision = f"decisions/Решение_{obj.sbkts}.pdf"
-					obj.application = f"applications/Заявка_{signed_document_key}.pdf"
-					obj.contract = f"contracts/Договор_{signed_document_key}.pdf"
-					obj.protocol = f"protocols/Протокол_{obj.sbkts}.pdf"
-					obj.protocol_new = f"protocols_new/Протокол_новый_{obj.sbkts}.pdf"
-					obj.logbook = f"logbooks/Журнал_{signed_document_key}.pdf"
-					obj.expert = f"experts/ТехСпец_{obj.sbkts}.pdf"
-					#тут
-					obj.conclusion = f"conclusions/Заключение_{signed_document_key}.pdf"
-					obj.journal_c00395 = f"journal_main/Журнал_Основной_{obj.sbkts}.pdf"                                                                                         
-					obj.protocol_c00395 = f"protocol_main/Протокол_Основной_{obj.sbkts}.pdf"
-					obj.isClose = True
-					obj.save()
+					media_root = BASE_DIR / "media"
+					document_names = {
+						"decision": f"decisions/Решение_{obj.sbkts}.pdf",
+						"application": application_pdf.relative_to(media_root).as_posix(),
+						"contract": contract_pdf.relative_to(media_root).as_posix(),
+						"protocol": f"protocols/Протокол_{obj.sbkts}.pdf",
+						"protocol_new": f"protocols_new/Протокол_новый_{obj.sbkts}.pdf",
+						"logbook": logbook_pdf.relative_to(media_root).as_posix(),
+						"expert": f"experts/ТехСпец_{obj.sbkts}.pdf",
+						"conclusion": conclusion_pdf.relative_to(media_root).as_posix(),
+						"journal_c00395": f"journal_main/Журнал_Основной_{obj.sbkts}.pdf",
+						"protocol_c00395": f"protocol_main/Протокол_Основной_{obj.sbkts}.pdf",
+					}
+					updated = Certificates.objects.filter(pk=obj.pk).update(
+						**document_names, isClose=True
+					)
+					if updated != 1:
+						return Response(
+							{"error": "Не удалось обновить ссылки документов."},
+							status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+						)
+
+					obj.refresh_from_db(fields=[*document_names, "isClose"])
+					document_urls = {
+						field: getattr(obj, field).url for field in document_names
+					}
 
 
 					return Response(
-						{"success": "ok", "signature_version": signature_version},
+						{
+							"success": "ok",
+							"certificate_id": obj.pk,
+							"signature_version": signature_version,
+							"documents": document_urls,
+						},
 						status=status.HTTP_201_CREATED,
 					)
 
-		return Response({"error": "bad request"}, status=status.HTTP_400_BAD_REQUEST)
+		return Response(
+			{"error": "Подпись не передана."},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
 
 
 @ensure_csrf_cookie
 def signature(request):
+	certificate_id = request.GET.get("certificate_id")
 	vin = request.GET.get('vin')
 
-	if vin is not None:
-		cert = Certificates.objects.filter(carVin = vin)
-		if len(cert) > 0:
-			model = CertModelSerializer(cert[0]).data
-			return render(request, "cert/signature.html", model)
-		else:
-			return HttpResponse("bad request"+vin)
+	try:
+		certificate = resolve_signature_certificate(
+			Certificates.objects, certificate_id=certificate_id, vin=vin
+		)
+	except SignatureCertificateLookupError as error:
+		return HttpResponse(str(error), status=error.status_code)
 	
-	return HttpResponse("params is null" + vin)
+	model = CertModelSerializer(certificate).data
+	return render(request, "cert/signature.html", model)
 
 @ensure_csrf_cookie
 def index_page(request):

@@ -8,7 +8,12 @@ from django.test import SimpleTestCase, override_settings
 from docxtpl import DocxTemplate
 
 from cert.utils import convert_to
-from cert.services import build_signed_document_key, resolve_certificate_creator
+from cert.services import (
+    SignatureCertificateLookupError,
+    build_signed_document_key,
+    resolve_certificate_creator,
+    resolve_signature_certificate,
+)
 from subuser.models import SubUser
 
 
@@ -23,6 +28,44 @@ class SignedDocumentKeyTests(SimpleTestCase):
         self.assertNotEqual(first_key, second_key)
         self.assertNotEqual(first_version, second_version)
         self.assertTrue(first_key.startswith("SBKTS-1_"))
+
+
+class SignatureRecordBindingTests(SimpleTestCase):
+    def test_certificate_id_takes_priority_over_non_unique_vin(self):
+        manager = MagicMock()
+        manager.model.DoesNotExist = type("DoesNotExist", (Exception,), {})
+        expected = MagicMock(carVin="VIN-1")
+        manager.get.return_value = expected
+
+        actual = resolve_signature_certificate(
+            manager, certificate_id="8", vin="VIN-1"
+        )
+
+        self.assertIs(actual, expected)
+        manager.get.assert_called_once_with(pk="8")
+        manager.filter.assert_not_called()
+
+    def test_duplicate_vin_is_not_resolved_to_first_certificate(self):
+        manager = MagicMock()
+        manager.filter.return_value.__getitem__.return_value = [object(), object()]
+
+        with self.assertRaisesRegex(
+            SignatureCertificateLookupError, "несколько сертификатов"
+        ):
+            resolve_signature_certificate(manager, vin="VIN-1")
+
+    def test_admin_opens_signature_for_exact_certificate(self):
+        script = (BASE_DIR / "static" / "js" / "custom_script.js").read_text()
+
+        self.assertIn("certificate_id: certificateId", script)
+        self.assertIn("window.location.pathname.match", script)
+
+    def test_signature_form_posts_and_verifies_certificate_id(self):
+        template = (BASE_DIR / "templates" / "cert" / "signature.html").read_text()
+
+        self.assertIn("data.append('certificate_id'", template)
+        self.assertIn("Number(result.certificate_id) !== expectedId", template)
+        self.assertIn("result.documents[fieldName]", template)
 
 
 class SignatureTemplateCompatibilityTests(SimpleTestCase):
