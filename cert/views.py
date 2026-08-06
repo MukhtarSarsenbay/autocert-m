@@ -21,6 +21,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from docxtpl import DocxTemplate
 from docx import Document
 from docx.shared import Inches
+from io import BytesIO
 
 import requests
 
@@ -288,7 +289,9 @@ class setSignatureView(APIView):
 						)
 
 					obj.signature = signature
-					obj.save()
+					obj.save(update_fields=["signature"])
+					with obj.signature.open("rb") as signature_file:
+						client_signature = signature_file.read()
 					# profile = Profile.objects.get(user=obj.creator.creator)
 					# model["vendor"] = profile.vendor                                                                                                                                                                       
 					# model["vendor_uid"] = profile.uid
@@ -337,26 +340,26 @@ class setSignatureView(APIView):
 					convert_to(BASE_DIR / f"media/decisions/Решение_{model.get('sbkts')}.docx")
 
 					application = DocxTemplate(BASE_DIR / f"media/ref/application.docx")
-					application.replace_pic("sigtest1.png", copy.deepcopy(obj.signature))
+					application.replace_pic("sigtest1.png", BytesIO(client_signature))
 					application.render(model)
 					application.save(BASE_DIR / f"media/applications/Заявка_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/applications/Заявка_{model.get('sbkts')}.docx")
 
 					contract = DocxTemplate(BASE_DIR / f"media/ref/contract.docx")
-					contract.replace_pic("sign.png", copy.deepcopy(obj.signature))
+					contract.replace_pic("sign.png", BytesIO(client_signature))
 					contract.render(model)
 					contract.save(BASE_DIR / f"media/contracts/Договор_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/contracts/Договор_{model.get('sbkts')}.docx")
 
 					logbook = DocxTemplate(BASE_DIR / f"media/ref/logbook.docx")
-					logbook.replace_pic("sign.png", copy.deepcopy(obj.signature))
+					logbook.replace_pic("sign.png", BytesIO(client_signature))
 					logbook.render(model)
 					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
 					
 					#тут
 					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")
-					conclusion.replace_pic("sing.png", copy.deepcopy(obj.signature))
+					conclusion.replace_pic("sing.png", BytesIO(client_signature))
 					conclusion.render(model)
 					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx")                                                                                         
 					convert_to(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx") 

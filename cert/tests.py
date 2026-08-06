@@ -1,6 +1,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
+from zipfile import ZipFile
 
 import requests
 from django.test import SimpleTestCase, override_settings
@@ -31,7 +32,16 @@ class SignatureTemplateCompatibilityTests(SimpleTestCase):
                     template = DocxTemplate(BASE_DIR / "media" / "ref" / template_name)
                     template.replace_pic(placeholder, BASE_DIR / "sign.png")
                     template.render({})
-                    template.save(Path(temporary_directory) / f"{index}.docx")
+                    output_path = Path(temporary_directory) / f"{index}.docx"
+                    template.save(output_path)
+
+                    with ZipFile(output_path) as document:
+                        embedded_images = [
+                            document.read(name)
+                            for name in document.namelist()
+                            if name.startswith("word/media/")
+                        ]
+                    self.assertIn((BASE_DIR / "sign.png").read_bytes(), embedded_images)
 
     def test_technical_expert_templates_render_with_fixed_signatures(self):
         with TemporaryDirectory() as temporary_directory:

@@ -80,47 +80,54 @@
   
       
 
-			$( document ).ready(function() {
-				$("#save-signature").on( "click", function() {
-                
-                	var sigdata = signaturePad.toDataURL();
-                	
-                	const blob = b64toBlob(sigdata.replace('data:image/png;base64,', ''), 'image/png')
-                
-                	var data = new FormData();
-                	data.append('vin', $("#vin").text());
-                	data.append('signature', blob, 'sigtest.png');
-                	console.log(sigdata)
-                
-                	if (signaturePad.isEmpty()) {
-                    	alert("Ошибка подпись не нарисовано")
-                    	return
+            $(document).ready(function() {
+                $("#save-signature").on("click", function() {
+                    const button = $(this);
+                    if (button.prop('disabled')) {
+                        return;
                     }
-                
-					$.ajax({
-                    	method: "POST",
-                    	type: 'POST',
-                    	url: "/api/setsignature/",
-                    	headers: {'X-CSRFToken': '{{ csrf_token }}'},
-                        xhrFields: { withCredentials: true },
-                    	cache: false,
-    					contentType: false,
-    					processData: false,
-                    	data: data,
-                        success: function(result) {
-                        	//alert("Успешно загружено подпись!")
-                        	window.close()
-                        },
-						error: function(xhr){
-							const message = xhr.responseJSON && xhr.responseJSON.error
-								? xhr.responseJSON.error
-								: 'Ошибка: подпись не загружена. Повторите ещё раз.';
-							alert(message);
-						}
-                        }
+
+                    const sigdata = signaturePad.toDataURL();
+                    const blob = b64toBlob(
+                        sigdata.replace('data:image/png;base64,', ''),
+                        'image/png'
                     );
-				})
-			})
+                    const data = new FormData();
+                    data.append('vin', $("#vin").text());
+                    data.append('signature', blob, 'sigtest.png');
+
+                    if (signaturePad.isEmpty()) {
+                        alert("Ошибка: подпись не нарисована");
+                        return;
+                    }
+
+                    button.prop('disabled', true).text('Сохранение…');
+
+                    $.ajax({
+                        method: "POST",
+                        url: "/api/setsignature/",
+                        headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                        xhrFields: {withCredentials: true},
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        data: data,
+                        success: function() {
+                            if (window.opener && !window.opener.closed) {
+                                window.opener.location.reload();
+                            }
+                            window.close();
+                        },
+                        error: function(xhr) {
+                            button.prop('disabled', false).text('Подписать сигнатуру');
+                            const message = xhr.responseJSON && xhr.responseJSON.error
+                                ? xhr.responseJSON.error
+                                : 'Ошибка: подпись не загружена. Повторите ещё раз.';
+                            alert(message);
+                        }
+                    });
+                });
+            });
 
 		</script>
 	</body>

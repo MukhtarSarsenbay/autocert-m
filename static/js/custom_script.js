@@ -190,12 +190,27 @@ $( document ).ready(function() {
         $('#id_testRAW').show();
     }
 
+	const generatedDocumentFields = [
+		'application', 'decision', 'contract', 'protocol', 'protocol_new',
+		'logbook', 'expert', 'conclusion', 'journal_c00395', 'protocol_c00395',
+		'signature'
+	];
+	const documentVersion = Date.now();
+	generatedDocumentFields.forEach(function(fieldName) {
+		$(".field-" + fieldName + " a").each(function() {
+			const href = $(this).attr("href");
+			if (!href) return;
+			const separator = href.indexOf('?') === -1 ? '?' : '&';
+			$(this).attr("href", href + separator + "v=" + documentVersion);
+		});
+	});
+
 	var fileLinks = [
-    	$(".field-application a").attr("href"),
-    	$(".field-decision a").attr("href"),
-    	$(".field-contract a").attr("href"),
-    	$(".field-protocol a").attr("href"),
-    ]
+		$(".field-application a").attr("href"),
+		$(".field-decision a").attr("href"),
+		$(".field-contract a").attr("href"),
+		$(".field-protocol a").attr("href"),
+	]
     
 
 	$('#download').click(function() {
