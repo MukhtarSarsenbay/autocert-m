@@ -343,13 +343,13 @@ class setSignatureView(APIView):
 					convert_to(BASE_DIR / f"media/applications/Заявка_{model.get('sbkts')}.docx")
 
 					contract = DocxTemplate(BASE_DIR / f"media/ref/contract.docx")
-					contract.replace_pic("sign.png", obj.signature)
+					contract.replace_pic("sign.png", copy.deepcopy(obj.signature))
 					contract.render(model)
 					contract.save(BASE_DIR / f"media/contracts/Договор_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/contracts/Договор_{model.get('sbkts')}.docx")
 
 					logbook = DocxTemplate(BASE_DIR / f"media/ref/logbook.docx")
-					logbook.replace_pic("sign.png", obj.signature)
+					logbook.replace_pic("sign.png", copy.deepcopy(obj.signature))
 					logbook.render(model)
 					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
@@ -371,15 +371,15 @@ class setSignatureView(APIView):
 					protocol_c00395.save(BASE_DIR / f"media/protocol_main/Протокол_Основной_{model.get('sbkts')}.docx")                                                           
 					convert_to(BASE_DIR / f"media/protocol_main/Протокол_Основной_{model.get('sbkts')}.docx") 
 
+					# Technical-expert templates already contain the approved fixed
+					# laboratory signatures and stamp; they have no sign.png placeholder.
 					if obj.carCategory in ["O1", "O2", "O3", "O4"]:
 						experts = DocxTemplate(BASE_DIR / f"media/ref/tex_expert_p.docx")
-						experts.replace_pic("sign.png", creator.sign)
 						experts.render(model)
 						experts.save(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 					else:
 						experts = DocxTemplate(BASE_DIR / f"media/ref/tex_expert.docx")
-						experts.replace_pic("sign.png", creator.sign)
 						experts.render(model)
 						experts.save(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")

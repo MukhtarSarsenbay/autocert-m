@@ -4,10 +4,42 @@ from unittest.mock import MagicMock, patch
 
 import requests
 from django.test import SimpleTestCase, override_settings
+from docxtpl import DocxTemplate
 
 from cert.utils import convert_to
 from cert.services import resolve_certificate_creator
 from subuser.models import SubUser
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class SignatureTemplateCompatibilityTests(SimpleTestCase):
+    def test_dynamic_signature_placeholders_are_available(self):
+        cases = (
+            ("application.docx", "sigtest1.png"),
+            ("contract.docx", "sign.png"),
+            ("logbook.docx", "sign.png"),
+            ("conclusion.docx", "sing.png"),
+            ("protocol_b.docx", "sign.png"),
+            ("protocol_o.docx", "sign.png"),
+        )
+
+        with TemporaryDirectory() as temporary_directory:
+            for index, (template_name, placeholder) in enumerate(cases):
+                with self.subTest(template=template_name, placeholder=placeholder):
+                    template = DocxTemplate(BASE_DIR / "media" / "ref" / template_name)
+                    template.replace_pic(placeholder, BASE_DIR / "sign.png")
+                    template.render({})
+                    template.save(Path(temporary_directory) / f"{index}.docx")
+
+    def test_technical_expert_templates_render_with_fixed_signatures(self):
+        with TemporaryDirectory() as temporary_directory:
+            for template_name in ("tex_expert.docx", "tex_expert_p.docx"):
+                with self.subTest(template=template_name):
+                    template = DocxTemplate(BASE_DIR / "media" / "ref" / template_name)
+                    template.render({})
+                    template.save(Path(temporary_directory) / template_name)
 
 
 class CertificateCreatorResolutionTests(SimpleTestCase):
