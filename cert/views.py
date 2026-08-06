@@ -31,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 
 from .utils import convert_to
-from .services import resolve_certificate_creator
+from .services import build_signed_document_key, resolve_certificate_creator
 
 from requests.auth import HTTPBasicAuth
 
@@ -292,6 +292,9 @@ class setSignatureView(APIView):
 					obj.save(update_fields=["signature"])
 					with obj.signature.open("rb") as signature_file:
 						client_signature = signature_file.read()
+					signed_document_key, signature_version = build_signed_document_key(
+						model.get("sbkts"), client_signature
+					)
 					# profile = Profile.objects.get(user=obj.creator.creator)
 					# model["vendor"] = profile.vendor                                                                                                                                                                       
 					# model["vendor_uid"] = profile.uid
@@ -342,27 +345,27 @@ class setSignatureView(APIView):
 					application = DocxTemplate(BASE_DIR / f"media/ref/application.docx")
 					application.replace_pic("sigtest1.png", BytesIO(client_signature))
 					application.render(model)
-					application.save(BASE_DIR / f"media/applications/Заявка_{model.get('sbkts')}.docx")
-					convert_to(BASE_DIR / f"media/applications/Заявка_{model.get('sbkts')}.docx")
+					application.save(BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx")
+					convert_to(BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx")
 
 					contract = DocxTemplate(BASE_DIR / f"media/ref/contract.docx")
 					contract.replace_pic("sign.png", BytesIO(client_signature))
 					contract.render(model)
-					contract.save(BASE_DIR / f"media/contracts/Договор_{model.get('sbkts')}.docx")
-					convert_to(BASE_DIR / f"media/contracts/Договор_{model.get('sbkts')}.docx")
+					contract.save(BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx")
+					convert_to(BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx")
 
 					logbook = DocxTemplate(BASE_DIR / f"media/ref/logbook.docx")
 					logbook.replace_pic("sign.png", BytesIO(client_signature))
 					logbook.render(model)
-					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
-					convert_to(BASE_DIR / f"media/logbooks/Журнал_{model.get('sbkts')}.docx")
+					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
+					convert_to(BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
 					
 					#тут
 					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")
 					conclusion.replace_pic("sing.png", BytesIO(client_signature))
 					conclusion.render(model)
-					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx")                                                                                         
-					convert_to(BASE_DIR / f"media/conclusions/Заключение_{model.get('sbkts')}.docx") 
+					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx")
+					convert_to(BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx")
 
 					journal_c00395 = DocxTemplate(BASE_DIR / "media/ref/journal_С-00395.docx")                                                                                    
 					journal_c00395.render(model)                                                                                                                                  
@@ -573,21 +576,24 @@ class setSignatureView(APIView):
 
 					obj = Certificates.objects.get(id = model.get("id"))
 					obj.decision = f"decisions/Решение_{obj.sbkts}.pdf"
-					obj.application = f"applications/Заявка_{obj.sbkts}.pdf"
-					obj.contract = f"contracts/Договор_{obj.sbkts}.pdf"
+					obj.application = f"applications/Заявка_{signed_document_key}.pdf"
+					obj.contract = f"contracts/Договор_{signed_document_key}.pdf"
 					obj.protocol = f"protocols/Протокол_{obj.sbkts}.pdf"
 					obj.protocol_new = f"protocols_new/Протокол_новый_{obj.sbkts}.pdf"
-					obj.logbook = f"logbooks/Журнал_{obj.sbkts}.pdf"
+					obj.logbook = f"logbooks/Журнал_{signed_document_key}.pdf"
 					obj.expert = f"experts/ТехСпец_{obj.sbkts}.pdf"
 					#тут
-					obj.conclusion = f"conclusions/Заключение_{obj.sbkts}.pdf"
+					obj.conclusion = f"conclusions/Заключение_{signed_document_key}.pdf"
 					obj.journal_c00395 = f"journal_main/Журнал_Основной_{obj.sbkts}.pdf"                                                                                         
 					obj.protocol_c00395 = f"protocol_main/Протокол_Основной_{obj.sbkts}.pdf"
 					obj.isClose = True
 					obj.save()
 
 
-					return Response({"success": "ok"}, status=status.HTTP_201_CREATED)
+					return Response(
+						{"success": "ok", "signature_version": signature_version},
+						status=status.HTTP_201_CREATED,
+					)
 
 		return Response({"error": "bad request"}, status=status.HTTP_400_BAD_REQUEST)
 

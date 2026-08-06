@@ -8,11 +8,21 @@ from django.test import SimpleTestCase, override_settings
 from docxtpl import DocxTemplate
 
 from cert.utils import convert_to
-from cert.services import resolve_certificate_creator
+from cert.services import build_signed_document_key, resolve_certificate_creator
 from subuser.models import SubUser
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class SignedDocumentKeyTests(SimpleTestCase):
+    def test_new_signature_gets_new_document_key(self):
+        first_key, first_version = build_signed_document_key("SBKTS-1", b"first")
+        second_key, second_version = build_signed_document_key("SBKTS-1", b"second")
+
+        self.assertNotEqual(first_key, second_key)
+        self.assertNotEqual(first_version, second_version)
+        self.assertTrue(first_key.startswith("SBKTS-1_"))
 
 
 class SignatureTemplateCompatibilityTests(SimpleTestCase):
