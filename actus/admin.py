@@ -377,9 +377,9 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 
 	class Media:
 		js = (
-        	"//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js",
-        	'js/custom_list_color.js',
-        )  # Укажите путь к вашему JavaScript файлу
+			'admin/js/jquery.init.js',
+			'js/custom_list_color.js',
+		)
 
 @admin.register(ActusPending)
 class ActusReportMenu(ModelAdmin, ExportActionModelAdmin):

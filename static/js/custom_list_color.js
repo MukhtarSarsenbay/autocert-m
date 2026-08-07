@@ -1,18 +1,23 @@
-if (!$) {
-    $ = django.jQuery;
-}
+(function($) {
 
 function getCSRFToken() {
-    let cookieValue = null;
+    const formToken = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (formToken && formToken.value) {
+        return formToken.value;
+    }
+
     const cookies = document.cookie.split(';');
     for (let i = 0; i < cookies.length; i++) {
         const cookie = cookies[i].trim();
-        if (cookie.startsWith('csrftoken=')) {
-            cookieValue = cookie.substring('csrftoken='.length);
-            break;
+        const separator = cookie.indexOf('=');
+        if (separator === -1) continue;
+
+        const name = cookie.substring(0, separator);
+        if (name === 'csrftoken' || name.endsWith('_csrftoken')) {
+            return decodeURIComponent(cookie.substring(separator + 1));
         }
     }
-    return cookieValue;
+    return null;
 }
 
 function csrfSafeMethod(method) {
@@ -88,14 +93,19 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-$( document ).ready(function() {
-	txt1 = `<div id='id_container'></div>`;
+$(document).ready(function() {
+	const pdfInput = document.getElementById('app1');
+	const pdfInputVIN = document.getElementById('app2');
+	if (!pdfInput || !pdfInputVIN) {
+		return;
+	}
+
+	let txt1 = `<div id='id_container'></div>`;
 	$("div.form-row.block.field-frln").after(txt1);
 
 	txt1 = `<div id='pdfContainer'></div>`;
 	$("#id_personPhone").after(txt1);
 
-	const pdfInput = document.getElementById('app1');
     const pdfContainer = document.getElementById('pdfContainer');
 	pdfContainer.setAttribute('style', 'float:right');
 
@@ -133,7 +143,7 @@ $( document ).ready(function() {
             pdfContainer.appendChild(embed);
         
         
-			formdata = new FormData();
+			const formdata = new FormData();
         	formdata.append("file", file);
         	$.ajax({
     			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectID/",
@@ -144,8 +154,7 @@ $( document ).ready(function() {
     			success: function (result) {
                 	$("#id_frln").val(result.flm);
                 	$("#id_personUid").val(result.uid);
-                	$("#id_personUid").val(result.uid);
-                	$("#id_personNumber").val(result.id);
+					$("#id_personNumber").val(result.id);
                 	$("#id_personPublic").val(result.date);
                 	$("#id_address").val(result.address);
     			},
@@ -180,7 +189,7 @@ $( document ).ready(function() {
    	 			false,
   			);
         
-        	formdata = new FormData();
+			const formdata = new FormData();
         	formdata.append("file", file);
         	$.ajax({
     			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectID/",
@@ -191,8 +200,7 @@ $( document ).ready(function() {
     			success: function (result) {
                 	$("#id_frln").val(result.flm);
                 	$("#id_personUid").val(result.uid);
-                	$("#id_personUid").val(result.uid);
-                	$("#id_personNumber").val(result.id);
+					$("#id_personNumber").val(result.id);
                 	$("#id_personPublic").val(result.date);
                 	$("#id_address").val(result.address);
     			},
@@ -228,8 +236,6 @@ $( document ).ready(function() {
 	$("#idblockVIN").append($(".field-carColor"));
 	$("#id_container_vin").append($("#pdfContainerVIN"))
 
-	const pdfInputVIN = document.getElementById('app2');
-
 	pdfInputVIN.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file && file.type === 'application/pdf') {
@@ -250,7 +256,7 @@ $( document ).ready(function() {
             pdfContainerVIN.appendChild(embed);
         
         
-			formdata = new FormData();
+			const formdata = new FormData();
         	formdata.append("file", file);
         	$.ajax({
     			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectVIN/",
@@ -294,7 +300,7 @@ $( document ).ready(function() {
    	 			false,
   			);
         
-        	formdata = new FormData();
+			const formdata = new FormData();
         	formdata.append("file", file);
         	$.ajax({
     			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectVIN/",
@@ -395,4 +401,6 @@ $( document ).ready(function() {
 	});
 
 	
-})
+});
+
+})(django.jQuery);
