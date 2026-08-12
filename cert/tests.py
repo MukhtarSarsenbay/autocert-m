@@ -73,10 +73,7 @@ class SignatureTemplateCompatibilityTests(SimpleTestCase):
         cases = (
             ("application.docx", "sigtest1.png"),
             ("contract.docx", "sign.png"),
-            ("logbook.docx", "sign.png"),
             ("conclusion.docx", "sing.png"),
-            ("protocol_b.docx", "sign.png"),
-            ("protocol_o.docx", "sign.png"),
         )
 
         with TemporaryDirectory() as temporary_directory:

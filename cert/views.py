@@ -371,7 +371,6 @@ class setSignatureView(APIView):
 					)
 
 					logbook = DocxTemplate(BASE_DIR / f"media/ref/logbook.docx")
-					logbook.replace_pic("sign.png", BytesIO(client_signature))
 					logbook.render(model)
 					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
 					logbook_pdf = convert_to(
@@ -413,20 +412,17 @@ class setSignatureView(APIView):
 					
 					if obj.carCategory in ["O1", "O2", "O3", "O4"]:
 						protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_o.docx")
-						protocol.replace_pic("sign.png", copy.deepcopy(creator.sign))
 						protocol.render(model)
 						protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 					else:
 						if obj.testFuelType in ["b", "g", "d"]:
 							protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_b.docx")
-							protocol.replace_pic("sign.png", copy.deepcopy(creator.sign))
 							protocol.render(model)
 							protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 							convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						elif obj.testFuelType == "e":
 							protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_b.docx")
-							protocol.replace_pic("sign.png", copy.deepcopy(creator.sign))
 							protocol.render(model)
 							protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 							convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")

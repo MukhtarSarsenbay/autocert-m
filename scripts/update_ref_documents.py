@@ -158,25 +158,21 @@ DOCUMENT_IMAGE_REPLACEMENTS = {
         "word/media/image3.jpeg": "stamp",
     },
     "journal_С-00395.docx": {
-        "word/media/image1.png": "director_signature",
         "word/media/image2.jpeg": "stamp",
     },
     "logbook.docx": {
-        "word/media/image2.png": "director_signature",
         "word/media/image3.jpeg": "stamp",
     },
     "protocol_add_С-00395.docx": {
         "word/media/image4.png": "director_signature",
     },
     "protocol_b.docx": {
-        "word/media/image3.png": "director_signature",
         "word/media/image4.jpeg": "stamp",
     },
     "protocol_new.docx": {
         "word/media/image4.png": "director_signature",
     },
     "protocol_o.docx": {
-        "word/media/image3.png": "director_signature",
         "word/media/image4.jpeg": "stamp",
     },
     "tex_expert.docx": {
