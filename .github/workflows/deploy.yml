@@ -1,21 +1,47 @@
-name: Deploy
+name: CI/CD
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: autocert-m-deploy
+  group: autocert-m-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  ci:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build application image
+        run: docker build --tag autocert-m-ci .
+
+      - name: Check Django configuration
+        run: docker run --rm autocert-m-ci python manage.py check
+
+      - name: Run tests
+        run: >-
+          docker run --rm autocert-m-ci
+          python manage.py test testlog cert
+          --settings=labauto.test_settings --verbosity 1
+
   deploy:
     name: Deploy to server
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
@@ -24,17 +50,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          DEPLOY_SHA: ${{ github.sha }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_SSH_PORT || 22 }}
-          envs: GH_TOKEN,REPOSITORY
+          envs: GH_TOKEN,REPOSITORY,DEPLOY_SHA,SERVER_APP_DIR
           command_timeout: 30m
           script: |
             set -eu
 
-            cd "${{ secrets.SERVER_APP_DIR }}"
+            cd "$SERVER_APP_DIR"
 
             if [ ! -d .git ]; then
               echo "SERVER_APP_DIR must point to an existing clone of this repository."
@@ -43,9 +71,9 @@ jobs:
 
             git remote set-url origin "https://github.com/${REPOSITORY}.git"
             git_auth_header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
-            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $git_auth_header" fetch --prune origin main
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $git_auth_header" fetch --no-tags origin "$DEPLOY_SHA"
             unset git_auth_header GH_TOKEN
-            git reset --hard origin/main
+            git reset --hard "$DEPLOY_SHA"
 
             if [ ! -f .env ]; then
               echo "Missing server .env file. Create it from .env.example before deploying."
@@ -59,7 +87,6 @@ jobs:
             docker compose up -d --no-deps --force-recreate proxy
             docker compose exec -T web find /app/media -type d -exec chmod 755 {} +
             docker compose exec -T web find /app/media -type f -name '*.pdf' -exec chmod 644 {} +
-            docker compose exec -T web python manage.py test testlog cert --settings=labauto.test_settings --verbosity 1
             docker compose exec -T web python manage.py migrate --noinput
             docker compose exec -T web python manage.py ensure_testlog_creators
             docker compose exec -T web python manage.py check

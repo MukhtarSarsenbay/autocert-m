@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-newlabauto}
       POSTGRES_USER: ${POSTGRES_USER:-erema}
@@ -64,7 +65,7 @@ services:
     volumes:
       - ./media:/app/media
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/', headers={'Host':'localhost'}); urllib.request.urlopen(req, timeout=5).read()\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/health/', headers={'Host':'localhost'}); urllib.request.urlopen(req, timeout=5).read()\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -77,7 +78,7 @@ services:
       web:
         condition: service_healthy
     ports:
-      - "8667:80"
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8667}:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./media:/app/media:ro
