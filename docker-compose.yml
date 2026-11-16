@@ -29,8 +29,9 @@ services:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3000/health"]
       interval: 10s
       timeout: 5s
-      retries: 6
-      start_period: 30s
+      retries: 12
+      # Allow LibreOffice to initialize on a cold or busy server.
+      start_period: 180s
     restart: unless-stopped
 
   web:
