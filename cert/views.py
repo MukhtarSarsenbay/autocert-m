@@ -30,7 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 import os
 
-from .utils import convert_to
+from .utils import convert_to, save_docx
 from .services import (
 	SignatureCertificateLookupError,
 	build_signed_document_key,
@@ -288,17 +288,10 @@ class setSignatureView(APIView):
 
 		if signature:
 
-					creator = resolve_certificate_creator(obj, request.user)
-					if creator is None:
-						return Response(
-							{"error": "У сертификата не указан ответственный сотрудник."},
-							status=status.HTTP_400_BAD_REQUEST,
-						)
-					if not creator.sign:
-						return Response(
-							{"error": "У ответственного сотрудника не загружена подпись."},
-							status=status.HTTP_400_BAD_REQUEST,
-						)
+					# Staff names and signatures are embedded in the reference templates.
+					# Keep legacy creator recovery, but do not require an employee profile
+					# or an uploaded employee signature to sign the customer's documents.
+					resolve_certificate_creator(obj, request.user)
 
 					obj.signature = signature
 					obj.save(update_fields=["signature"])
@@ -328,8 +321,6 @@ class setSignatureView(APIView):
 					model["conclusion_number"] = obj.conclusionNumber
 					
 
-					model["CfirstName"] = creator.first_name
-					model["ClastName"] = creator.last_name
 					model["day"] = obj.certCreateDate.day
 					model["month"] = month_to_string.get(obj.certCreateDate.month)
 					model["year"] = obj.certCreateDate.year
@@ -351,13 +342,13 @@ class setSignatureView(APIView):
 
 					decision = DocxTemplate(BASE_DIR / f"media/ref/decision.docx")
 					decision.render(model)
-					decision.save(BASE_DIR / f"media/decisions/Решение_{model.get('sbkts')}.docx")
+					save_docx(decision, BASE_DIR / f"media/decisions/Решение_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/decisions/Решение_{model.get('sbkts')}.docx")
 
 					application = DocxTemplate(BASE_DIR / f"media/ref/application.docx")
 					application.replace_pic("sigtest1.png", BytesIO(client_signature))
 					application.render(model)
-					application.save(BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx")
+					save_docx(application, BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx")
 					application_pdf = convert_to(
 						BASE_DIR / f"media/applications/Заявка_{signed_document_key}.docx"
 					)
@@ -365,14 +356,14 @@ class setSignatureView(APIView):
 					contract = DocxTemplate(BASE_DIR / f"media/ref/contract.docx")
 					contract.replace_pic("sign.png", BytesIO(client_signature))
 					contract.render(model)
-					contract.save(BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx")
+					save_docx(contract, BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx")
 					contract_pdf = convert_to(
 						BASE_DIR / f"media/contracts/Договор_{signed_document_key}.docx"
 					)
 
 					logbook = DocxTemplate(BASE_DIR / f"media/ref/logbook.docx")
 					logbook.render(model)
-					logbook.save(BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
+					save_docx(logbook, BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx")
 					logbook_pdf = convert_to(
 						BASE_DIR / f"media/logbooks/Журнал_{signed_document_key}.docx"
 					)
@@ -381,19 +372,19 @@ class setSignatureView(APIView):
 					conclusion = DocxTemplate(BASE_DIR / f"media/ref/conclusion.docx")
 					conclusion.replace_pic("sing.png", BytesIO(client_signature))
 					conclusion.render(model)
-					conclusion.save(BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx")
+					save_docx(conclusion, BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx")
 					conclusion_pdf = convert_to(
 						BASE_DIR / f"media/conclusions/Заключение_{signed_document_key}.docx"
 					)
 
 					journal_c00395 = DocxTemplate(BASE_DIR / "media/ref/journal_С-00395.docx")                                                                                    
 					journal_c00395.render(model)                                                                                                                                  
-					journal_c00395.save(BASE_DIR / f"media/journal_main/Журнал_Основной_{model.get('sbkts')}.docx")                                                               
+					save_docx(journal_c00395, BASE_DIR / f"media/journal_main/Журнал_Основной_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/journal_main/Журнал_Основной_{model.get('sbkts')}.docx")                                                                        
 																																													
 					protocol_c00395 = DocxTemplate(BASE_DIR / "media/ref/protocol_add_С-00395.docx")                                                                              
 					protocol_c00395.render(model)
-					protocol_c00395.save(BASE_DIR / f"media/protocol_main/Протокол_Основной_{model.get('sbkts')}.docx")                                                           
+					save_docx(protocol_c00395, BASE_DIR / f"media/protocol_main/Протокол_Основной_{model.get('sbkts')}.docx")
 					convert_to(BASE_DIR / f"media/protocol_main/Протокол_Основной_{model.get('sbkts')}.docx") 
 
 					# Technical-expert templates already contain the approved fixed
@@ -401,30 +392,30 @@ class setSignatureView(APIView):
 					if obj.carCategory in ["O1", "O2", "O3", "O4"]:
 						experts = DocxTemplate(BASE_DIR / f"media/ref/tex_expert_p.docx")
 						experts.render(model)
-						experts.save(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
+						save_docx(experts, BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 					else:
 						experts = DocxTemplate(BASE_DIR / f"media/ref/tex_expert.docx")
 						experts.render(model)
-						experts.save(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
+						save_docx(experts, BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/experts/ТехСпец_{model.get('sbkts')}.docx")
 
 					
 					if obj.carCategory in ["O1", "O2", "O3", "O4"]:
 						protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_o.docx")
 						protocol.render(model)
-						protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
+						save_docx(protocol, BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 					else:
 						if obj.testFuelType in ["b", "g", "d"]:
 							protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_b.docx")
 							protocol.render(model)
-							protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
+							save_docx(protocol, BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 							convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						elif obj.testFuelType == "e":
 							protocol = DocxTemplate(BASE_DIR / f"media/ref/protocol_b.docx")
 							protocol.render(model)
-							protocol.save(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
+							save_docx(protocol, BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 							convert_to(BASE_DIR / f"media/protocols/Протокол_{model.get('sbkts')}.docx")
 						else:
 							pass
@@ -454,9 +445,8 @@ class setSignatureView(APIView):
 						protocol_new.render(model)                                                                                                                                                                                           
 																																																											
 						out_docx = BASE_DIR / f"media/protocols_new/Протокол_новый_{model.get('sbkts')}.docx"                                                                                                                                
-						out_docx.parent.mkdir(parents=True, exist_ok=True)  # <-- важно                                                                                                                                                      
 																																																											
-						protocol_new.save(out_docx)                                                                                                                                                                                          
+						save_docx(protocol_new, out_docx)
 						convert_to(out_docx) 
 						
 

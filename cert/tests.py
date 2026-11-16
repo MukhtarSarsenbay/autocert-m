@@ -1,11 +1,16 @@
+from datetime import date
 from pathlib import Path
+from shutil import copytree
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
 import requests
-from django.test import SimpleTestCase, override_settings
+from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase, TestCase, override_settings
 from docxtpl import DocxTemplate
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from cert.utils import convert_to
 from cert.services import (
@@ -129,6 +134,141 @@ class CertificateCreatorResolutionTests(SimpleTestCase):
 
         self.assertIsNone(creator)
         certificate.save.assert_not_called()
+
+
+class CertificateSigningTests(TestCase):
+    def setUp(self):
+        from cert.views import setSignatureView
+
+        self.view = setSignatureView.as_view()
+        self.factory = APIRequestFactory()
+        self.administrator = User.objects.create_user(
+            username="signing-admin", is_staff=True, is_superuser=True
+        )
+        temporary_directory = TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        self.root = Path(temporary_directory.name)
+        copytree(BASE_DIR / "media" / "ref", self.root / "media" / "ref")
+        self.enterContext(override_settings(MEDIA_ROOT=self.root / "media"))
+        self.enterContext(patch("cert.views.BASE_DIR", self.root))
+        self.converter = self.enterContext(
+            patch("cert.views.convert_to", side_effect=self.convert_document)
+        )
+        self.signature_bytes = (BASE_DIR / "sign.png").read_bytes()
+
+    def convert_document(self, source):
+        source = Path(source)
+        with ZipFile(source) as document:
+            self.assertIsNone(document.testzip())
+        destination = source.with_suffix(".pdf")
+        destination.write_bytes(b"%PDF-1.7\nTest converter output\n%%EOF")
+        return destination
+
+    def create_certificate(self, creator=None):
+        from cert.models import Certificates
+
+        return Certificates.objects.create(
+            sbkts="SIGNING-TEST-1",
+            certCreateDate=date(2026, 11, 16),
+            carVin="VIN-SIGNING-TEST",
+            carCategory="M1",
+            testFuelType="b",
+            conclusionNumber=1,
+            creator=creator,
+        )
+
+    def post_signature(self, certificate, signer=None, include_signature=True):
+        payload = {"certificate_id": certificate.pk, "vin": certificate.carVin}
+        if include_signature:
+            payload["signature"] = SimpleUploadedFile(
+                "customer.png", self.signature_bytes, content_type="image/png"
+            )
+        request = self.factory.post("/api/setSignature/", payload, format="multipart")
+        force_authenticate(request, user=signer or self.administrator)
+        return self.view(request)
+
+    def assert_signed_documents(self, certificate, response):
+        self.assertEqual(response.status_code, 201, response.data)
+        certificate.refresh_from_db()
+        self.assertTrue(certificate.isClose)
+        self.assertEqual(response.data["certificate_id"], certificate.pk)
+        self.assertEqual(len(response.data["documents"]), 10)
+        self.assertEqual(self.converter.call_count, 10)
+        for field in response.data["documents"]:
+            self.assertTrue(Path(getattr(certificate, field).path).is_file(), field)
+        for field in ("application", "contract", "conclusion"):
+            with ZipFile(Path(getattr(certificate, field).path).with_suffix(".docx")) as document:
+                images = [
+                    document.read(name)
+                    for name in document.namelist()
+                    if name.startswith("word/media/")
+                ]
+                self.assertIn(self.signature_bytes, images, field)
+        for field in (
+            "decision", "protocol", "protocol_new", "logbook", "expert",
+            "conclusion", "journal_c00395", "protocol_c00395",
+        ):
+            with ZipFile(Path(getattr(certificate, field).path).with_suffix(".docx")) as document:
+                images = [
+                    document.read(name)
+                    for name in document.namelist()
+                    if name.startswith("word/media/")
+                ]
+                self.assertIn((BASE_DIR / "media/ref/lab_head_sign.png").read_bytes(), images, field)
+                if field not in ("decision", "conclusion"):
+                    self.assertIn((BASE_DIR / "media/ref/specialist_sign.png").read_bytes(), images, field)
+
+    def test_administrator_can_sign_without_assigned_employee(self):
+        certificate = self.create_certificate()
+
+        response = self.post_signature(certificate)
+
+        self.assert_signed_documents(certificate, response)
+        self.assertIsNone(certificate.creator_id)
+
+    def test_existing_employee_does_not_need_an_uploaded_signature(self):
+        employee = SubUser.objects.create_user(
+            username="assigned-employee", creator=self.administrator, sign=""
+        )
+        certificate = self.create_certificate(creator=employee)
+
+        response = self.post_signature(certificate)
+
+        self.assert_signed_documents(certificate, response)
+        self.assertEqual(certificate.creator_id, employee.pk)
+
+    def test_subuser_recovers_creator_without_an_uploaded_signature(self):
+        employee = SubUser.objects.create_user(
+            username="signing-employee", creator=self.administrator, sign="", is_staff=True
+        )
+        certificate = self.create_certificate()
+
+        response = self.post_signature(certificate, signer=employee)
+
+        self.assert_signed_documents(certificate, response)
+        self.assertEqual(certificate.creator_id, employee.pk)
+
+    def test_customer_signature_is_still_required(self):
+        certificate = self.create_certificate()
+
+        response = self.post_signature(certificate, include_signature=False)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "Подпись не передана.")
+        certificate.refresh_from_db()
+        self.assertFalse(certificate.isClose)
+        self.converter.assert_not_called()
+
+    def test_nonstaff_account_cannot_sign(self):
+        certificate = self.create_certificate()
+        user = User.objects.create_user(username="nonstaff")
+
+        response = self.post_signature(certificate, signer=user)
+
+        self.assertEqual(response.status_code, 403)
+        certificate.refresh_from_db()
+        self.assertFalse(certificate.isClose)
+        self.converter.assert_not_called()
 
 
 @override_settings(

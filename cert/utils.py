@@ -8,6 +8,13 @@ from django.conf import settings
 DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
+def save_docx(document, destination):
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    document.save(destination)
+    return destination
+
+
 def convert_to(path, timeout=None):
     source_path = Path(path)
     if not source_path.is_file():

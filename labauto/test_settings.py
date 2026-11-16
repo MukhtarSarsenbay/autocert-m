@@ -10,12 +10,14 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "subuser.apps.SubuserConfig",
+    "actus.apps.ActusConfig",
+    "cert.apps.CertConfig",
     "testlog",
 ]
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
+        "ENGINE": "labauto.test_sqlite",
         "NAME": ":memory:",
     }
 }
