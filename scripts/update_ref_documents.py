@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import os
+import posixpath
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -15,19 +17,81 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 REF_DIR = BASE_DIR / "media" / "ref"
 NCA_IMAGE = REF_DIR / "nca_kz_t_06_3077.png"
 DIRECTOR_SIGNATURE_IMAGE = REF_DIR / "director_sign.png"
-# Currently a plain company wordmark; replace with an approved seal when supplied.
+DIRECTOR_SIGNATURE_AND_STAMP_IMAGE = REF_DIR / "director_signature_and_stamp.png"
+LAB_HEAD_SIGNATURE_IMAGE = REF_DIR / "lab_head_sign.png"
+SPECIALIST_SIGNATURE_IMAGE = REF_DIR / "specialist_sign.png"
+# Existing round company seal extracted from the user's reference journal.
 STAMP_IMAGE = REF_DIR / "pechat.png"
 
-DIRECTOR_FULL_NAME = "Сайдхакимов Бахтияр Абдухамидович"
-DIRECTOR_FULL_NAME_GENITIVE = "Сайдхакимова Бахтияра Абдухамидовича"
+DIRECTOR_FULL_NAME = "Мырзалиев М.Б."
+DIRECTOR_FULL_NAME_GENITIVE = "Мырзалиева М.Б."
+LAB_HEAD_FULL_NAME = "Озықбай Береке Сембекұлы"
+SPECIALIST_FULL_NAME = "Женисов Бекзат Ерболатович"
+STAFF_REPLACEMENTS = [
+    ("Шәріп Ахмеди Құлбайұлы", LAB_HEAD_FULL_NAME),
+    ("Тусипкалиев  Кулбай Шарипович", SPECIALIST_FULL_NAME),
+    ("Тусипкалиев Кулбай Шарипович", SPECIALIST_FULL_NAME),
+    ("Тусипкалиев К.Ш.", SPECIALIST_FULL_NAME),
+]
+
+# Roles were checked against the text and drawing relationships in each DOCX.
+# The source journal's image1 is the specialist; image2 is the laboratory head.
+STAFF_IMAGE_REPLACEMENTS = {
+    "conclusion.docx": {"word/media/image1.png": "lab_head_signature"},
+    "decision.docx": {"word/media/image2.png": "lab_head_signature"},
+    "journal_С-00395.docx": {
+        "word/media/image1.png": "specialist_signature",
+        "word/media/image2.png": "lab_head_signature",
+    },
+    "logbook.docx": {
+        "word/media/image1.png": "specialist_signature",
+        "word/media/image2.png": "lab_head_signature",
+    },
+    "protocol_add_С-00395.docx": {
+        "word/media/image3.png": "specialist_signature",
+        "word/media/image4.png": "lab_head_signature",
+    },
+    "protocol_new.docx": {
+        "word/media/image3.png": "specialist_signature",
+        "word/media/image4.png": "lab_head_signature",
+    },
+    "protocol_b.docx": {
+        "word/media/image2.png": "specialist_signature",
+        "word/media/image3.png": "lab_head_signature",
+    },
+    "protocol_o.docx": {
+        "word/media/image2.png": "specialist_signature",
+        "word/media/image3.png": "lab_head_signature",
+    },
+    "tex_expert.docx": {
+        "word/media/image2.png": "specialist_signature",
+        "word/media/image3.png": "lab_head_signature",
+    },
+    "tex_expert_p.docx": {
+        "word/media/image2.png": "specialist_signature",
+        "word/media/image3.png": "lab_head_signature",
+    },
+}
 
 OLD_NCA_SHA256_VALUES = {
     "026fe8fac90aae0740714129d7a67a2deeb96c836f6b6afd57abb202060bee30",
     "1119e1313dc0d5b7e659f9b4f8a81b97e8d372d50f4e5a87b1b874c3600aa882",
 }
 
-LEGAL_ADDRESS = "Атырауская область, город Атырау, микрорайон Атырау, 89а."
-PHYSICAL_ADDRESS = "Атырауская область, город Атырау, микрорайон Атырау, 89б."
+LEGAL_ADDRESS = (
+    "Республика Казахстан, Западно-Казахстанская область, г. Уральск, "
+    "ул. Самал, дом 94/1, кв. 133"
+)
+PHYSICAL_ADDRESS = (
+    "Республика Казахстан, Западно-Казахстанская область, г. Уральск, "
+    "ул. Академика Асана Тайманова, здание 221В"
+)
+ADDRESS_REPLACEMENTS = [
+    ("Атырауская область, город Атырау, микрорайон Атырау, 89а.", LEGAL_ADDRESS),
+    ("Атырауская область, город Атырау, микрорайон Атырау, 89А.", LEGAL_ADDRESS),
+    ("Атырауская область, город Атырау, микрорайон Атырау, 89б.", PHYSICAL_ADDRESS),
+    ("Атырауская область, город Атырау, микрорайон Атырау, 89Б.", PHYSICAL_ADDRESS),
+]
 NEW_ATTESTATION = (
     "№ KZ.T.06.3077\n"
     "от «4» мая 2026 года\n"
@@ -48,6 +112,8 @@ KAZAKH_ATTESTATION = (
 
 # Long, context-specific replacements must run before the short fallbacks.
 REPLACEMENTS = [
+    ("Сайдхакимов Бахтияр Абдухамидович", DIRECTOR_FULL_NAME),
+    ("Сайдхакимова Бахтияра Абдухамидовича", DIRECTOR_FULL_NAME_GENITIVE),
     ("Садуахасов Алихан Бахитович", DIRECTOR_FULL_NAME),
     ("Садуахасов А.Б .", DIRECTOR_FULL_NAME),
     ("Садуахасов А.Б.", DIRECTOR_FULL_NAME),
@@ -119,16 +185,15 @@ DOCUMENT_REPLACEMENTS = {
         (PHYSICAL_ADDRESS, LEGAL_ADDRESS),
     ],
     "protocol_add_С-00395.docx": [
-        ("Николаевич Валерий", DIRECTOR_FULL_NAME),
+        ("Николаевич Валерий", LAB_HEAD_FULL_NAME),
     ],
     "protocol_new.docx": [
-        ("{{ClastName}} {{CfirstName}}", DIRECTOR_FULL_NAME),
+        ("{{ClastName}} {{CfirstName}}", LAB_HEAD_FULL_NAME),
     ],
 }
 
-# Images that belong to the laboratory director are fixed in the templates.
-# Customer and test-specialist signatures use different placeholders and must
-# remain dynamic.
+# Company director and stamp assets. Laboratory staff are handled separately
+# above; customer signature placeholders must remain dynamic.
 DOCUMENT_IMAGE_REPLACEMENTS = {
     "act.docx": {
         "word/media/image1.png": "stamp",
@@ -139,22 +204,16 @@ DOCUMENT_IMAGE_REPLACEMENTS = {
         "word/media/image2.png": "stamp",
     },
     "act_contract_qaz.docx": {
-        "word/media/image1.png": "stamp",
-        "word/media/image2.png": "director_signature",
+        "word/media/image1.png": "director_signature_and_stamp",
     },
     "act_qaz.docx": {
         "word/media/image1.png": "stamp",
-        "word/media/image2.png": "director_signature",
-    },
-    "conclusion.docx": {
-        "word/media/image1.png": "director_signature",
         "word/media/image2.png": "director_signature",
     },
     "contract.docx": {
         "word/media/image1.png": "director_signature_and_stamp",
     },
     "decision.docx": {
-        "word/media/image2.png": "director_signature",
         "word/media/image3.png": "stamp",
     },
     "journal_С-00395.docx": {
@@ -163,25 +222,19 @@ DOCUMENT_IMAGE_REPLACEMENTS = {
     "logbook.docx": {
         "word/media/image3.png": "stamp",
     },
-    "protocol_add_С-00395.docx": {
-        "word/media/image4.png": "director_signature",
-    },
     "protocol_b.docx": {
         "word/media/image4.png": "stamp",
     },
     "protocol_new.docx": {
-        "word/media/image4.png": "director_signature",
         "word/media/image5.png": "stamp",
     },
     "protocol_o.docx": {
         "word/media/image4.png": "stamp",
     },
     "tex_expert.docx": {
-        "word/media/image3.png": "director_signature",
         "word/media/image4.png": "stamp",
     },
     "tex_expert_p.docx": {
-        "word/media/image3.png": "director_signature",
         "word/media/image4.png": "stamp",
     },
 }
@@ -254,6 +307,24 @@ def _replace_in_container(container, counts, replacements):
             _replace_match(nodes, start, start + len(old), new)
             counts[old] = counts.get(old, 0) + 1
             changed = True
+    return changed
+
+
+def _replace_addresses(root, counts, document_name):
+    changed = False
+    for paragraph in root.iter():
+        if paragraph.tag not in PARAGRAPH_TAGS:
+            continue
+        changed = _replace_in_container(paragraph, counts, ADDRESS_REPLACEMENTS) or changed
+        # The customer contract puts this label in the preceding table row.
+        # The complete address now includes the country itself.
+        text = "".join(node.text or "" for node in _text_nodes(paragraph))
+        if document_name == "contract.docx" and text.strip() == "Юр.адрес: Республика Казахстан,":
+            changed = _replace_in_container(
+                paragraph,
+                counts,
+                [("Юр.адрес: Республика Казахстан,", "Юр.адрес:")],
+            ) or changed
     return changed
 
 
@@ -345,7 +416,8 @@ def _convert_newlines_to_word_breaks(root):
 def _update_xml(data, counts, document_name):
     parser = etree.XMLParser(remove_blank_text=False, resolve_entities=False)
     root = etree.fromstring(data, parser)
-    changed = _replace_legal_address_table_rows(root, counts)
+    changed = _replace_addresses(root, counts, document_name)
+    changed = _replace_legal_address_table_rows(root, counts) or changed
     replacements = DOCUMENT_REPLACEMENTS.get(document_name, []) + REPLACEMENTS
     for paragraph in root.iter():
         if paragraph.tag in PARAGRAPH_TAGS:
@@ -444,21 +516,76 @@ def _compose_director_signature_and_stamp(signature, stamp, embedded_image):
 
 
 def _replace_document_image(document_name, entry_name, embedded_image, assets):
+    staff_role = STAFF_IMAGE_REPLACEMENTS.get(document_name, {}).get(entry_name)
+    if staff_role:
+        # Keep the cleaned asset intact; its proportions are set in DrawingML.
+        return assets[staff_role]
     replacement_role = DOCUMENT_IMAGE_REPLACEMENTS.get(document_name, {}).get(entry_name)
     if replacement_role == "director_signature":
         return _fit_asset_to_embedded_image(assets["director_signature"], embedded_image)
     if replacement_role == "stamp":
-        return _fit_asset_to_embedded_image(assets["stamp"], embedded_image)
+        return assets["stamp"]
     if replacement_role == "director_signature_and_stamp":
-        return _compose_director_signature_and_stamp(
-            assets["director_signature"],
-            assets["stamp"],
-            embedded_image,
-        )
+        # Keep the user-provided director signature and round seal together.
+        return assets["director_signature_and_stamp"]
     return embedded_image
 
 
-def _update_document(document, assets):
+def _update_staff_xml(data, counts, document_name, relationships, assets):
+    root = etree.fromstring(data, etree.XMLParser(resolve_entities=False))
+    changed = False
+    for paragraph in root.iter():
+        if paragraph.tag in PARAGRAPH_TAGS:
+            changed = _replace_in_container(paragraph, counts, STAFF_REPLACEMENTS) or changed
+
+    ns = {
+        "w": W_NS,
+        "a": A_NS,
+        "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+        "pic": "http://schemas.openxmlformats.org/drawingml/2006/picture",
+    }
+    roles = STAFF_IMAGE_REPLACEMENTS.get(document_name, {})
+    for drawing in root.findall(".//w:drawing", ns):
+        blip = drawing.find(".//a:blip", ns)
+        if blip is None:
+            continue
+        image_name = relationships.get(blip.get(f"{{{ns['r']}}}embed"))
+        role = roles.get(image_name)
+        if not role:
+            continue
+        extent = drawing.find(".//wp:extent", ns)
+        picture_extent = drawing.find(".//pic:spPr/a:xfrm/a:ext", ns)
+        if extent is None or picture_extent is None:
+            raise ValueError(f"Missing signature drawing dimensions: {document_name}, {image_name}")
+        with Image.open(BytesIO(assets[role])) as signature:
+            width, height = signature.size
+        cx, cy = int(extent.get("cx")), int(extent.get("cy"))
+        # Compact signature rows have captions immediately below the handwriting.
+        # A 1 cm image height keeps the white image box clear of those captions.
+        max_height = cy if document_name in {"conclusion.docx", "decision.docx"} else 360000
+        # Fit inside the existing signature area, without enlarging or stretching.
+        # A one-EMU rounding tolerance makes subsequent runs stable.
+        if cy > max_height or abs(cx * height - cy * width) > max(width, height):
+            scale = min(cx / width, cy / height, max_height / height)
+            new_cx, new_cy = round(width * scale), round(height * scale)
+            horizontal_offset = drawing.find(".//wp:positionH/wp:posOffset", ns)
+            if horizontal_offset is not None:
+                horizontal_offset.text = str(int(horizontal_offset.text) + (cx - new_cx) // 2)
+            for element in (extent, picture_extent):
+                element.set("cx", str(new_cx))
+                element.set("cy", str(new_cy))
+            changed = True
+        # Cropping values from the previous photograph must not clip the new ink.
+        for crop in drawing.findall(".//a:srcRect", ns):
+            crop.getparent().remove(crop)
+            changed = True
+    if not changed:
+        return data, False
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True), True
+
+
+def _update_document(document, assets, staff_only=False):
     counts = {}
     image_replacements = 0
     changed_parts = 0
@@ -467,23 +594,41 @@ def _update_document(document, assets):
     with ZipFile(document, "r") as source:
         archive_comment = source.comment
         entries = [(info, source.read(info.filename)) for info in source.infolist()]
+    contents = {info.filename: data for info, data in entries}
 
     updated_entries = []
     for info, data in entries:
         updated_data = data
         if info.filename.startswith("word/") and info.filename.endswith(".xml"):
-            updated_data, changed = _update_xml(data, counts, document.name)
+            changed = False
+            if not staff_only:
+                updated_data, changed = _update_xml(updated_data, counts, document.name)
+            directory, filename = posixpath.split(info.filename)
+            relations_data = contents.get(f"{directory}/_rels/{filename}.rels")
+            relationships = {}
+            if relations_data:
+                for relation in etree.fromstring(relations_data):
+                    if relation.get("TargetMode") != "External":
+                        relationships[relation.get("Id")] = posixpath.normpath(
+                            posixpath.join(directory, relation.get("Target"))
+                        )
+            updated_data, staff_changed = _update_staff_xml(
+                updated_data, counts, document.name, relationships, assets
+            )
+            changed = changed or staff_changed
             changed_parts += int(changed)
         elif info.filename.startswith("word/media/"):
-            updated_data = _replace_document_image(
-                document.name,
-                info.filename,
-                data,
-                assets,
-            )
+            staff_role = STAFF_IMAGE_REPLACEMENTS.get(document.name, {}).get(info.filename)
+            if not staff_only or staff_role:
+                updated_data = _replace_document_image(
+                    document.name,
+                    info.filename,
+                    data,
+                    assets,
+                )
             if updated_data != data:
                 image_replacements += 1
-            elif hashlib.sha256(data).hexdigest() in OLD_NCA_SHA256_VALUES:
+            elif not staff_only and hashlib.sha256(data).hexdigest() in OLD_NCA_SHA256_VALUES:
                 updated_data = assets["nca"]
                 image_replacements += 1
         updated_entries.append((info, updated_data))
@@ -523,11 +668,24 @@ def _update_document(document, assets):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Update reference document templates.")
+    parser.add_argument(
+        "--staff-only",
+        action="store_true",
+        help="Update laboratory head and specialist names/signatures only.",
+    )
+    args = parser.parse_args()
     required_images = {
-        "nca": NCA_IMAGE,
-        "director_signature": DIRECTOR_SIGNATURE_IMAGE,
-        "stamp": STAMP_IMAGE,
+        "lab_head_signature": LAB_HEAD_SIGNATURE_IMAGE,
+        "specialist_signature": SPECIALIST_SIGNATURE_IMAGE,
     }
+    if not args.staff_only:
+        required_images.update({
+            "nca": NCA_IMAGE,
+            "director_signature": DIRECTOR_SIGNATURE_IMAGE,
+            "director_signature_and_stamp": DIRECTOR_SIGNATURE_AND_STAMP_IMAGE,
+            "stamp": STAMP_IMAGE,
+        })
     missing_images = [path for path in required_images.values() if not path.is_file()]
     if missing_images:
         raise FileNotFoundError(", ".join(str(path) for path in missing_images))
@@ -535,7 +693,7 @@ def main():
 
     updated = {}
     for document in sorted(REF_DIR.glob("*.docx")):
-        result = _update_document(document, assets)
+        result = _update_document(document, assets, staff_only=args.staff_only)
         if result:
             updated[document.name] = result
 
