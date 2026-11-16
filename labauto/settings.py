@@ -44,8 +44,8 @@ DEBUG = env_bool('DJANGO_DEBUG', True)
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ["cms.labauto.kz", "88.204.128.70"])
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS', [])
-CSRF_COOKIE_NAME = os.getenv('DJANGO_CSRF_COOKIE_NAME', 'kaspicert_csrftoken')
-SESSION_COOKIE_NAME = os.getenv('DJANGO_SESSION_COOKIE_NAME', 'kaspicert_sessionid')
+CSRF_COOKIE_NAME = os.getenv('DJANGO_CSRF_COOKIE_NAME', 'autocert_m_csrftoken')
+SESSION_COOKIE_NAME = os.getenv('DJANGO_SESSION_COOKIE_NAME', 'autocert_m_sessionid')
 
 if env_bool('DJANGO_SECURE_PROXY_SSL_HEADER', False):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -211,8 +211,8 @@ from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
 UNFOLD = {
-    "SITE_TITLE": "Добро пожаловать на сайт KASPICERT.KZ",
-    #"SITE_HEADER": "",
+    "SITE_TITLE": "Автосерт-М",
+    "SITE_HEADER": "Автосерт-М",
     "SITE_URL": "/",
     # "SITE_ICON": lambda request: static("icon.svg"),  # both modes, optimise for 32px height
     "SITE_ICON": {

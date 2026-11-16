@@ -15,6 +15,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 REF_DIR = BASE_DIR / "media" / "ref"
 NCA_IMAGE = REF_DIR / "nca_kz_t_06_3077.png"
 DIRECTOR_SIGNATURE_IMAGE = REF_DIR / "director_sign.png"
+# Currently a plain company wordmark; replace with an approved seal when supplied.
 STAMP_IMAGE = REF_DIR / "pechat.png"
 
 DIRECTOR_FULL_NAME = "Сайдхакимов Бахтияр Абдухамидович"
@@ -91,9 +92,8 @@ REPLACEMENTS = [
     ),
     ("РК, г. Шымкент, ул. Рыскулова 1048Б", PHYSICAL_ADDRESS),
     ("город Шымкент, ул. Рыскулова 1048Б", PHYSICAL_ADDRESS),
-    ("Көлік сынақ зертханасы", "Kaspisert"),
-    ("KaspiNet", "Kaspisert"),
-    ('«"Kaspisert"»', "«Kaspisert»"),
+    ("Көлік сынақ зертханасы", "Автосерт-М"),
+    ('«"Автосерт-М"»', "«Автосерт-М»"),
     ("KZ.T.16.Е1185", "KZ.T.06.3077"),
     ("KZ.T.16.E1185", "KZ.T.06.3077"),
     ("от «15» июля 2022 г.", NEW_ATTESTATION_DATES),
@@ -155,33 +155,34 @@ DOCUMENT_IMAGE_REPLACEMENTS = {
     },
     "decision.docx": {
         "word/media/image2.png": "director_signature",
-        "word/media/image3.jpeg": "stamp",
+        "word/media/image3.png": "stamp",
     },
     "journal_С-00395.docx": {
-        "word/media/image2.jpeg": "stamp",
+        "word/media/image3.png": "stamp",
     },
     "logbook.docx": {
-        "word/media/image3.jpeg": "stamp",
+        "word/media/image3.png": "stamp",
     },
     "protocol_add_С-00395.docx": {
         "word/media/image4.png": "director_signature",
     },
     "protocol_b.docx": {
-        "word/media/image4.jpeg": "stamp",
+        "word/media/image4.png": "stamp",
     },
     "protocol_new.docx": {
         "word/media/image4.png": "director_signature",
+        "word/media/image5.png": "stamp",
     },
     "protocol_o.docx": {
-        "word/media/image4.jpeg": "stamp",
+        "word/media/image4.png": "stamp",
     },
     "tex_expert.docx": {
         "word/media/image3.png": "director_signature",
-        "word/media/image4.jpeg": "stamp",
+        "word/media/image4.png": "stamp",
     },
     "tex_expert_p.docx": {
         "word/media/image3.png": "director_signature",
-        "word/media/image4.jpeg": "stamp",
+        "word/media/image4.png": "stamp",
     },
 }
 
@@ -286,7 +287,7 @@ def _format_decision_director_name(root, document_name):
     for paragraph in root.iter(W_P):
         nodes = _text_nodes(paragraph)
         paragraph_text = "".join(node.text or "" for node in nodes)
-        if "ТОО «Kaspisert»" not in paragraph_text:
+        if "ТОО «Автосерт-М»" not in paragraph_text:
             continue
         for node in nodes:
             if node.text != DIRECTOR_FULL_NAME:
