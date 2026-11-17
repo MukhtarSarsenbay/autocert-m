@@ -15,7 +15,7 @@ from PIL import Image, ImageChops, ImageOps
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 REF_DIR = BASE_DIR / "media" / "ref"
-NCA_IMAGE = REF_DIR / "nca_kz_t_06_3077.png"
+NCA_IMAGE = REF_DIR / "nca_kz_t_09_3244.png"
 DIRECTOR_SIGNATURE_IMAGE = REF_DIR / "director_sign.png"
 DIRECTOR_SIGNATURE_AND_STAMP_IMAGE = REF_DIR / "director_signature_and_stamp.png"
 LAB_HEAD_SIGNATURE_IMAGE = REF_DIR / "lab_head_sign.png"
@@ -74,6 +74,7 @@ STAFF_IMAGE_REPLACEMENTS = {
 }
 
 OLD_NCA_SHA256_VALUES = {
+    "bed789602755594baf14f049ef7d565b4003d72c1f0f00c8ba69851405cda29a",
     "026fe8fac90aae0740714129d7a67a2deeb96c836f6b6afd57abb202060bee30",
     "1119e1313dc0d5b7e659f9b4f8a81b97e8d372d50f4e5a87b1b874c3600aa882",
 }
@@ -92,23 +93,26 @@ ADDRESS_REPLACEMENTS = [
     ("Атырауская область, город Атырау, микрорайон Атырау, 89б.", PHYSICAL_ADDRESS),
     ("Атырауская область, город Атырау, микрорайон Атырау, 89Б.", PHYSICAL_ADDRESS),
 ]
-NEW_ATTESTATION = (
-    "№ KZ.T.06.3077\n"
-    "от «4» мая 2026 года\n"
-    "действителен до «4» мая 2031 года.\n"
-    "ГОСТ ISO/ІЕС 17025-2019"
-)
-NEW_ATTESTATION_DATES = (
-    "от «4» мая 2026 года\n"
-    "действителен до «4» мая 2031 года.\n"
-    "ГОСТ ISO/ІЕС 17025-2019"
-)
-KAZAKH_ATTESTATION = (
-    "№ KZ.T.06.3077\n"
-    "2026 ж. «4» мамырдан бастап\n"
-    "2031 ж. «4» мамырға дейін жарамды\n"
-    "ГОСТ ISO/ІЕС 17025-2019"
-)
+NEW_ATTESTATION = "№ KZ.T.09.3244 от «8» октября 2026 года"
+NEW_ATTESTATION_DATES = "от «8» октября 2026 года"
+KAZAKH_ATTESTATION = "№ KZ.T.09.3244, 2026 ж. «8» қазаннан бастап"
+# Approved examples: Протокол_новый_D-00003.pdf and ТехСпец_D-00003.pdf.
+# They contain only the issue date, without the old expiry date / ISO line.
+ACCREDITATION_REPLACEMENTS = [
+    (
+        "№ KZ.T.06.3077"
+        "2026 ж. «4» мамырдан бастап"
+        "2031 ж. «4» мамырға дейін жарамды"
+        "ГОСТ ISO/ІЕС 17025-2019",
+        KAZAKH_ATTESTATION,
+    ),
+    (
+        "от «4» мая 2026 года"
+        "действителен до «4» мая 2031 года."
+        "ГОСТ ISO/ІЕС 17025-2019",
+        NEW_ATTESTATION_DATES,
+    ),
+]
 
 # Long, context-specific replacements must run before the short fallbacks.
 REPLACEMENTS = [
@@ -160,8 +164,9 @@ REPLACEMENTS = [
     ("город Шымкент, ул. Рыскулова 1048Б", PHYSICAL_ADDRESS),
     ("Көлік сынақ зертханасы", "Автосерт-М"),
     ('«"Автосерт-М"»', "«Автосерт-М»"),
-    ("KZ.T.16.Е1185", "KZ.T.06.3077"),
-    ("KZ.T.16.E1185", "KZ.T.06.3077"),
+    ("KZ.T.06.3077", "KZ.T.09.3244"),
+    ("KZ.T.16.Е1185", "KZ.T.09.3244"),
+    ("KZ.T.16.E1185", "KZ.T.09.3244"),
     ("от «15» июля 2022 г.", NEW_ATTESTATION_DATES),
     ("от «15» июля 2022 г", NEW_ATTESTATION_DATES),
     ("города Шымкент", "города Атырау"),
@@ -421,13 +426,47 @@ def _update_xml(data, counts, document_name):
     replacements = DOCUMENT_REPLACEMENTS.get(document_name, []) + REPLACEMENTS
     for paragraph in root.iter():
         if paragraph.tag in PARAGRAPH_TAGS:
+            if _replace_in_container(paragraph, counts, ACCREDITATION_REPLACEMENTS):
+                # The superseded date, expiry and ISO block used manual breaks.
+                # Remove those breaks as well as the text to match the examples.
+                for line_break in list(paragraph.iter(W_BR)):
+                    line_break.getparent().remove(line_break)
+                changed = True
             changed = _replace_in_container(paragraph, counts, replacements) or changed
     changed = _replace_kazakh_accreditation_cell(root, counts) or changed
     changed = _format_decision_director_name(root, document_name) or changed
+    changed = _format_protocol_accreditation(root, document_name) or changed
     if not changed:
         return data, False
     _convert_newlines_to_word_breaks(root)
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True), True
+
+
+def _format_protocol_accreditation(root, document_name):
+    if document_name not in {"protocol_new.docx", "protocol_add_С-00395.docx"}:
+        return False
+    heading = attestation = None
+    for paragraph in root.iter(W_P):
+        text = "".join(node.text or "" for node in _text_nodes(paragraph))
+        if text.strip() == "Испытательная лаборатория ТОО «Автосерт-М»":
+            heading = paragraph
+        elif "Аттестат аккредитации " + NEW_ATTESTATION in text:
+            attestation = paragraph
+    if heading is None or attestation is None:
+        return False
+    cell = heading.getparent()
+    if cell.tag != W_TC or attestation.getparent() is cell:
+        return False
+    # Match the supplied protocol: attestation below the laboratory name,
+    # with the legal and physical addresses in the next table row.
+    heading.addnext(attestation)
+    for properties in attestation.iter(f"{{{W_NS}}}rPr"):
+        for name in ("b", "bCs"):
+            flag = properties.find(f"{{{W_NS}}}{name}")
+            if flag is None:
+                flag = etree.SubElement(properties, f"{{{W_NS}}}{name}")
+            flag.set(f"{{{W_NS}}}val", "0")
+    return True
 
 
 def _crop_white_margins(image):
