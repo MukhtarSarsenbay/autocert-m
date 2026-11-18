@@ -35,7 +35,7 @@ jobs:
       - name: Run tests
         run: >-
           docker run --rm autocert-m-ci
-          python manage.py test testlog cert
+          python manage.py test testlog cert actus
           --settings=labauto.test_settings --verbosity 1
 
   deploy:

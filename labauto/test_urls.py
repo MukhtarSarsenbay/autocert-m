@@ -11,6 +11,7 @@ def csrf_probe(request):
 
 
 urlpatterns = [
+    path("api/actus/", include("actus.urls")),
     path("health/", health_check, name="health"),
     path("_test/csrf/", csrf_probe),
     path("app/testlog/", include("testlog.urls")),

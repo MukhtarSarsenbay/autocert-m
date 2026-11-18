@@ -57,6 +57,12 @@ SESSION_COOKIE_SECURE = env_bool('DJANGO_SESSION_COOKIE_SECURE', False)
 PDF_CONVERTER_URL = os.getenv('PDF_CONVERTER_URL', 'http://converter:3000').rstrip('/')
 PDF_CONVERTER_TIMEOUT = int(os.getenv('PDF_CONVERTER_TIMEOUT', '120'))
 
+DOCUMENT_READER_ID_URL = os.getenv('DOCUMENT_READER_ID_URL', 'https://cms.labauto.kz/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectID').strip()
+DOCUMENT_READER_VIN_URL = os.getenv('DOCUMENT_READER_VIN_URL', 'https://cms.labauto.kz/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectVIN').strip()
+DOCUMENT_READER_CONNECT_TIMEOUT = int(os.getenv('DOCUMENT_READER_CONNECT_TIMEOUT', '5'))
+DOCUMENT_READER_READ_TIMEOUT = int(os.getenv('DOCUMENT_READER_READ_TIMEOUT', '60'))
+DOCUMENT_READER_MAX_FILE_SIZE = int(os.getenv('DOCUMENT_READER_MAX_FILE_SIZE', str(15 * 1024 * 1024)))
+
 
 # Application definition
 DJANGO_ADMIN_LOGS_ENABLED = False

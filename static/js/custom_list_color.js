@@ -93,236 +93,110 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
+function setRecognitionStatus(input, message, isError) {
+    const id = input.id + '_recognition_status';
+    let status = document.getElementById(id);
+    if (!status) {
+        status = document.createElement('div');
+        status.id = id;
+        status.setAttribute('role', 'status');
+        input.insertAdjacentElement('afterend', status);
+    }
+    status.textContent = message;
+    status.style.color = isError ? '#b91c1c' : '#475569';
+}
+
+function normalizeDateForInput(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{4})$/);
+    return match ? `${match[3]}-${match[2]}-${match[1]}` : text;
+}
+
+async function handleDocumentSelection(input, kind) {
+    // Cancel any previous upload, including when the new selection is invalid.
+    if (input.recognitionController) input.recognitionController.abort();
+    const controller = new AbortController();
+    input.recognitionController = controller;
+    const file = input.files && input.files[0];
+    if (!file) {
+        setRecognitionStatus(input, '', false);
+        return;
+    }
+    if (!/^(application\/(x-)?pdf|image\/(jpeg|jpg|pjpeg))$/i.test(file.type || '')
+        && !/\.(pdf|jpe?g)$/i.test(file.name || '')) {
+        setRecognitionStatus(input, 'Поддерживаются только PDF и JPG', true);
+        return;
+    }
+    const previewId = input.id + '_document_preview';
+    let preview = document.getElementById(previewId);
+    if (!preview) {
+        preview = document.createElement('div');
+        preview.id = previewId;
+        input.insertAdjacentElement('afterend', preview);
+    }
+    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+    const url = URL.createObjectURL(file);
+    preview.dataset.objectUrl = url;
+    const pdf = /pdf$/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
+    const image = document.createElement(pdf ? 'embed' : 'img');
+    image.src = url;
+    image.style.cssText = 'max-width:100%;width:500px;max-height:500px;object-fit:contain;';
+    if (pdf) {
+        image.type = 'application/pdf';
+        image.height = '500';
+    }
+    preview.replaceChildren(image);
+    const fieldIds = kind === 'id'
+        ? ['id_frln', 'id_personUid', 'id_personNumber', 'id_personPublic', 'id_address']
+        : ['id_carVincode', 'id_carMarka', 'id_carYear'];
+    const before = Object.fromEntries(fieldIds.map(id => [id, document.getElementById(id)?.value]));
+    function fill(id, value) {
+        const field = document.getElementById(id);
+        if (field && value !== null && value !== undefined && String(value).trim()
+            && field.value === before[id]) {
+            field.value = String(value).trim();
+        }
+    }
+    setRecognitionStatus(input, 'Распознавание документа…', false);
+    const timer = setTimeout(() => controller.abort(), 90000);
+    try {
+        const body = new FormData();
+        body.append('file', file);
+        const response = await fetch(`/api/actus/documents/recognize/${kind}/`, {
+            method: 'POST', body, credentials: 'same-origin',
+            headers: {'X-CSRFToken': getCSRFToken() || ''}, signal: controller.signal
+        });
+        let result;
+        try { result = await response.json(); }
+        catch (_) { throw new Error('Сервер вернул некорректный ответ. Обновите страницу и повторите попытку.'); }
+        if (!response.ok) throw new Error(result?.error || result?.detail || 'Не удалось распознать документ');
+        if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('Некорректный ответ сервиса');
+        if (input.recognitionController !== controller) return;
+        const values = kind === 'id'
+            ? [result.flm, result.uid, result.id, normalizeDateForInput(result.date), result.address]
+            : [String(result.vin_code || '').trim().toUpperCase(),
+               result.marka || [result.name, result.model].filter(Boolean).join(' '), result.year];
+        if (!values.some(value => value !== null && value !== undefined && String(value).trim())) {
+            throw new Error('Сервис не смог распознать данные документа');
+        }
+        fieldIds.forEach((id, index) => fill(id, values[index]));
+        setRecognitionStatus(input, 'Документ распознан. Проверьте заполненные поля.', false);
+    } catch (error) {
+        if (input.recognitionController !== controller) return;
+        setRecognitionStatus(input, error.name === 'AbortError'
+            ? 'Время ожидания истекло. Выберите файл повторно.' : error.message, true);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 $(document).ready(function() {
-	const pdfInput = document.getElementById('app1');
-	const pdfInputVIN = document.getElementById('app2');
-	if (!pdfInput || !pdfInputVIN) {
-		return;
-	}
-
-	let txt1 = `<div id='id_container'></div>`;
-	$("div.form-row.block.field-frln").after(txt1);
-
-	txt1 = `<div id='pdfContainer'></div>`;
-	$("#id_personPhone").after(txt1);
-
-    const pdfContainer = document.getElementById('pdfContainer');
-	pdfContainer.setAttribute('style', 'float:right');
-
-	txt1 = `<div id='idblock'></div>`;
-	$("#id_container").append(txt1)
-
-	const idBlock = document.getElementById('idblock');
-	idBlock.setAttribute('style', 'float:left;width:50%;');
-	
-	$("#idblock").append($(".field-frln"));
-	$("#idblock").append($(".field-personUid"));
-	$("#idblock").append($(".field-personNumber"));
-	$("#idblock").append($(".field-personPhone"));
-	$("#idblock").append($(".field-personPublic"));
-	$("#idblock").append($(".field-address"));
-	$("#id_container").append($("#pdfContainer"))
-
-    pdfInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-            // Создаем URL для загруженного файла
-            //const fileURL = URL.createObjectURL(file);
-        	const fileURL = URL.createObjectURL(file) + '#page=1&scrollbar=0&navpanes=0&toolbar=0';
-            
-            // Создаем embed элемент
-            const embed = document.createElement('embed');
-            embed.setAttribute('src', fileURL);
-            embed.setAttribute('width', '500px');
-            embed.setAttribute('height', '500px');
-        	//embed.setAttribute('style', 'float:right');
-            embed.setAttribute('type', 'application/pdf');
-            
-            // Очищаем контейнер и добавляем embed
-            pdfContainer.innerHTML = '';
-            pdfContainer.appendChild(embed);
-        
-        
-			const formdata = new FormData();
-        	formdata.append("file", file);
-        	$.ajax({
-    			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectID/",
-    			type: "POST",
-    			data: formdata,
-    			processData: false,
-    			contentType: false,
-    			success: function (result) {
-                	$("#id_frln").val(result.flm);
-                	$("#id_personUid").val(result.uid);
-					$("#id_personNumber").val(result.id);
-                	$("#id_personPublic").val(result.date);
-                	$("#id_address").val(result.address);
-    			},
-            	error: function() {
-                	alert("Ошибка при распознование УД")
-            	}
-			});
-        
-        } else if (file && file.type === 'image/jpeg') {
-        	const reader = new FileReader();
-        
-        	if (file) {
-    			reader.readAsDataURL(file);
-  			}
-        
-        	reader.addEventListener(
-    			"load",
-    			() => {
-      				// convert image file to base64 string
-                
-                	const embed = document.createElement('img');
-            		embed.setAttribute('src', reader.result);
-            		embed.setAttribute('width', '500px');
-            		embed.setAttribute('height', '500px');
-        			//embed.setAttribute('style', 'float:right');
-            
-            		// Очищаем контейнер и добавляем embed
-            		pdfContainer.innerHTML = '';
-            		pdfContainer.appendChild(embed);
-      				//preview.src = reader.result;
-    			},
-   	 			false,
-  			);
-        
-			const formdata = new FormData();
-        	formdata.append("file", file);
-        	$.ajax({
-    			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectID/",
-    			type: "POST",
-    			data: formdata,
-    			processData: false,
-    			contentType: false,
-    			success: function (result) {
-                	$("#id_frln").val(result.flm);
-                	$("#id_personUid").val(result.uid);
-					$("#id_personNumber").val(result.id);
-                	$("#id_personPublic").val(result.date);
-                	$("#id_address").val(result.address);
-    			},
-            	error: function() {
-                	alert("Ошибка при распознование УД")
-            	}
-			});
-        }
-    	else {
-            alert('Пожалуйста, выберите PDF или JPG файл');
-        }
-    });
-
-
-	txt1 = `<div id='id_container_vin'></div>`;
-	$(".field-carMarka").after(txt1);
-
-	txt1 = `<div id='pdfContainerVIN'></div>`;
-	$("#id_carColor").after(txt1);
-
-	const pdfContainerVIN = document.getElementById('pdfContainerVIN');
-	pdfContainerVIN.setAttribute('style', 'float:right');
-
-	txt1 = `<div id='idblockVIN'></div>`;
-	$("#id_container_vin").append(txt1)
-
-	const idBlockVIN = document.getElementById('idblockVIN');
-	idBlockVIN.setAttribute('style', 'float:left;width:40%;');
-	
-	$("#idblockVIN").append($(".field-carMarka"));
-	$("#idblockVIN").append($(".field-carVincode"));
-	$("#idblockVIN").append($(".field-carYear"));
-	$("#idblockVIN").append($(".field-carColor"));
-	$("#id_container_vin").append($("#pdfContainerVIN"))
-
-	pdfInputVIN.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-            // Создаем URL для загруженного файла
-            //const fileURL = URL.createObjectURL(file);
-        	const fileURL = URL.createObjectURL(file) + '#page=1&scrollbar=0&navpanes=0&toolbar=0';
-            
-            // Создаем embed элемент
-            const embed = document.createElement('embed');
-            embed.setAttribute('src', fileURL);
-            embed.setAttribute('width', '300px');
-            embed.setAttribute('height', '300px');
-        	//embed.setAttribute('style', 'float:right');
-            embed.setAttribute('type', 'application/pdf');
-            
-            // Очищаем контейнер и добавляем embed
-            pdfContainerVIN.innerHTML = '';
-            pdfContainerVIN.appendChild(embed);
-        
-        
-			const formdata = new FormData();
-        	formdata.append("file", file);
-        	$.ajax({
-    			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectVIN/",
-    			type: "POST",
-    			data: formdata,
-    			processData: false,
-    			contentType: false,
-    			success: function (result) {
-                	$("#id_carVincode").val(result.vin_code);
-                	$("#id_carMarka").val(result.marka);
-                	$("#id_carYear").val(result.year);
-    			},
-            	error: function() {
-                	alert("Ошибка при распознование УД")
-            	}
-			});
-        
-        } else if (file && file.type === 'image/jpeg') {
-        	const reader = new FileReader();
-        
-        	if (file) {
-    			reader.readAsDataURL(file);
-  			}
-        
-        	reader.addEventListener(
-    			"load",
-    			() => {
-      				// convert image file to base64 string
-                
-                	const embed = document.createElement('img');
-            		embed.setAttribute('src', reader.result);
-            		embed.setAttribute('width', '300px');
-            		embed.setAttribute('height', '300px');
-        			//embed.setAttribute('style', 'float:right');
-            
-            		// Очищаем контейнер и добавляем embed
-            		pdfContainerVIN.innerHTML = '';
-            		pdfContainerVIN.appendChild(embed);
-      				//preview.src = reader.result;
-    			},
-   	 			false,
-  			);
-        
-			const formdata = new FormData();
-        	formdata.append("file", file);
-        	$.ajax({
-    			url: "/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectVIN/",
-    			type: "POST",
-    			data: formdata,
-    			processData: false,
-    			contentType: false,
-    			success: function (result) {
-                	$("#id_carVincode").val(result.vin_code);
-                	$("#id_carMarka").val(result.marka);
-                	$("#id_carYear").val(result.year);
-    			},
-            	error: function() {
-                	alert("Ошибка при распознование УД")
-            	}
-			});
-        }
-    	else {
-            alert('Пожалуйста, выберите PDF или JPG файл');
-        }
-    });
-
+    // Match Django file widgets by name; their id may be app1 or id_app1.
+    if (!document.getElementById('id_carVincode') || !document.getElementById('id_frln')) return;
+    for (const [name, kind] of [['app1', 'id'], ['app2', 'vin']]) {
+        const input = document.querySelector(`input[type="file"][name="${name}"]`);
+        if (input) input.addEventListener('change', () => handleDocumentSelection(input, kind));
+    }
 
 	$('#id_carVincode').keyup(function (e) {
 		$(".field-carVincode").removeClass( "errors" );

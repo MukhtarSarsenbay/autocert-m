@@ -20,6 +20,7 @@ from django.urls import path, include
 from .views import health_check
 
 urlpatterns = [
+	path('api/actus/', include('actus.urls')),
 	path('health/', health_check, name='health'),
     path('store/', include('store.urls')),
 	path('api/', include('cert.urls')),

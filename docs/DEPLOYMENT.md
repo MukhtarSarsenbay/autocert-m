@@ -242,3 +242,25 @@ docker compose exec web python manage.py check_pdf_converter
   change an initialized database's password.
 - Missing new branding: verify the deployed commit and the two cookie settings in
   the server's existing `.env`. The deployment intentionally preserves `.env`.
+
+## Document recognition in acts
+
+On the act form, selecting a PDF/JPG in **Приложения 1** recognizes the identity
+card; **Приложения 2** recognizes the vehicle document. Review the populated
+fields before saving. Empty recognition results preserve existing field values.
+Uploads go through the authenticated Django endpoints under
+`/api/actus/documents/recognize/`, which forward them to the configured reader.
+
+The service URLs supplied by the working installation are defaults in Compose
+and Django. Override `DOCUMENT_READER_ID_URL` and `DOCUMENT_READER_VIN_URL` in the
+server `.env` if the service changes. Optional settings are
+`DOCUMENT_READER_CONNECT_TIMEOUT` (5 seconds), `DOCUMENT_READER_READ_TIMEOUT`
+(60 seconds), and `DOCUMENT_READER_MAX_FILE_SIZE` (15728640 bytes / 15 MiB).
+After changing these settings, recreate the web container:
+
+```bash
+docker compose up -d --force-recreate web
+```
+
+CI also runs the `actus` recognition tests. Unit tests mock the upstream reader;
+verifying OCR accuracy requires uploading a real document after deployment.

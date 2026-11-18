@@ -3,6 +3,34 @@ from subuser.models import SubUser
 from .models import *
 from cert.models import Certificates
 from django.contrib.auth.models import User
+from django.conf import settings
+from rest_framework import permissions, status
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .document_reader import DocumentReaderResponseError, detect_document_content_type, recognize_document
+
+
+class RecognizeDocumentView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, kind):
+        if kind not in {"id", "vin"}:
+            return Response({"error": "Неизвестный тип документа"}, status=status.HTTP_404_NOT_FOUND)
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            return Response({"error": "Файл не передан"}, status=status.HTTP_400_BAD_REQUEST)
+        if uploaded_file.size > settings.DOCUMENT_READER_MAX_FILE_SIZE:
+            size_mb = settings.DOCUMENT_READER_MAX_FILE_SIZE // (1024 * 1024)
+            return Response({"error": f"Размер файла не должен превышать {size_mb} МБ"}, status=status.HTTP_400_BAD_REQUEST)
+        if not detect_document_content_type(uploaded_file):
+            return Response({"error": "Поддерживаются только PDF и JPG"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            payload = recognize_document(kind, uploaded_file)
+        except DocumentReaderResponseError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(payload)
 
 import json
 
