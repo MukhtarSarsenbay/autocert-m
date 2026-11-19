@@ -175,7 +175,11 @@ REPLACEMENTS = [
 ]
 
 DOCUMENT_REPLACEMENTS = {
+    "act_contract.docx": [
+        ("в лице руководителя {{vendor_frln}}", "в лице руководителя {{vendor_frln_genitive}}"),
+    ],
     "act_contract_qaz.docx": [
+        ("в лице директора Мырзалиева М.Б.", "в лице директора {{vendor_frln_genitive}}"),
         (
             "в лице директора действующий",
             f"в лице директора {DIRECTOR_FULL_NAME_GENITIVE}, действующего",

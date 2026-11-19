@@ -61,9 +61,6 @@ month_to_string = {
 
 from .company import SUPPLIER_CONTEXT
 
-# Existing contract signer; the requested director change applies only to acts.
-DIRECTOR_FULL_NAME = "Сайдхакимов Бахтияр Абдухамидович"
-
 
 def get_act_document_paths(obj):
 	output_dir = Path(settings.MEDIA_ROOT) / "act"
@@ -353,7 +350,7 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		else:
 			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_contract.docx")
 
-		act_contract.render({**model, "vendor_frln": DIRECTOR_FULL_NAME})
+		act_contract.render(model)
 		act_contract.save(contract_path)
 		contract_pdf_path = convert_to(contract_path)
 

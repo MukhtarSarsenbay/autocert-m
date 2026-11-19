@@ -190,10 +190,9 @@ class ActSupplierDocumentTests(TestCase):
                             self.assertTrue(any(DIRECTOR_FULL_NAME in value for value in descriptions))
                             self.assertEqual(len(document.xpath('//*[local-name()="drawing"]')), 1)
                         else:
-                            # The director and signatures outside the acts stay unchanged.
-                            from .admin import DIRECTOR_FULL_NAME as previous_director
-                            self.assertIn(previous_director, text)
-                            self.assertNotIn(DIRECTOR_FULL_NAME, text)
+                            self.assertIn(DIRECTOR_FULL_NAME, text)
+                            self.assertIn(DIRECTOR_GENITIVE, text)
+                            self.assertNotIn('Сайдхакимов', text)
                             self.assertFalse((BASE_DIR / 'media/ref/act_executor_medeu.png').read_bytes() in images, 'Act image must not appear in contracts')
                     if field == obj.act or username != 'qaztehna':
                         self.assertIn('Test Customer', text)
@@ -205,5 +204,5 @@ class ActSupplierDocumentTests(TestCase):
     def test_empty_administrator_profile_uses_company_requisites(self):
         self.generate_documents('another-admin', False)
 
-    def test_qaz_contract_keeps_customer_and_director(self):
+    def test_qaz_contract_keeps_customer_and_uses_company_director(self):
         self.generate_documents('qaztehna', True)
