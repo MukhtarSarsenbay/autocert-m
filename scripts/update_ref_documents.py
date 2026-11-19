@@ -17,6 +17,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 REF_DIR = BASE_DIR / "media" / "ref"
 NCA_IMAGE = REF_DIR / "nca_kz_t_09_3244.png"
 DIRECTOR_SIGNATURE_IMAGE = REF_DIR / "director_sign.png"
+MEDEU_SIGNATURE_IMAGE = REF_DIR / "director_sign_medeu.png"
 DIRECTOR_SIGNATURE_AND_STAMP_IMAGE = REF_DIR / "director_signature_and_stamp.png"
 LAB_HEAD_SIGNATURE_IMAGE = REF_DIR / "lab_head_sign.png"
 SPECIALIST_SIGNATURE_IMAGE = REF_DIR / "specialist_sign.png"
@@ -202,7 +203,8 @@ DOCUMENT_REPLACEMENTS = {
 DOCUMENT_IMAGE_REPLACEMENTS = {
     "act.docx": {
         "word/media/image1.png": "stamp",
-        "word/media/image2.png": "director_signature",
+        "word/media/image2.png": "director_medeu_signature",
+        "word/media/act_executor_medeu.png": "act_executor",
     },
     "act_contract.docx": {
         "word/media/image1.png": "director_signature",
@@ -213,7 +215,8 @@ DOCUMENT_IMAGE_REPLACEMENTS = {
     },
     "act_qaz.docx": {
         "word/media/image1.png": "stamp",
-        "word/media/image2.png": "director_signature",
+        "word/media/image2.png": "director_medeu_signature",
+        "word/media/act_executor_medeu.png": "act_executor",
     },
     "contract.docx": {
         "word/media/image1.png": "director_signature_and_stamp",
@@ -560,6 +563,8 @@ def _replace_document_image(document_name, entry_name, embedded_image, assets):
         # Keep the cleaned asset intact; its proportions are set in DrawingML.
         return assets[staff_role]
     replacement_role = DOCUMENT_IMAGE_REPLACEMENTS.get(document_name, {}).get(entry_name)
+    if replacement_role in {"director_medeu_signature", "act_executor"}:
+        return assets[replacement_role]
     if replacement_role == "director_signature":
         return _fit_asset_to_embedded_image(assets["director_signature"], embedded_image)
     if replacement_role == "stamp":
@@ -722,6 +727,8 @@ def main():
         required_images.update({
             "nca": NCA_IMAGE,
             "director_signature": DIRECTOR_SIGNATURE_IMAGE,
+            "director_medeu_signature": MEDEU_SIGNATURE_IMAGE,
+            "act_executor": REF_DIR / "act_executor_medeu.png",
             "director_signature_and_stamp": DIRECTOR_SIGNATURE_AND_STAMP_IMAGE,
             "stamp": STAMP_IMAGE,
         })

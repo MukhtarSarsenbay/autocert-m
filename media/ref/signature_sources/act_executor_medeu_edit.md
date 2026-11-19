@@ -1,0 +1,6 @@
+Output: `../act_executor_medeu.png`.
+Inputs: `../печать автосерт.jpeg` and `../имя подпись директор и медеу.jpeg`.
+Method: built-in image_gen compositing. Used only in `act.docx` and `act_qaz.docx`.
+
+Prompt:
+Use case: compositing. Two provided source photographs: image 1 is the actual blue АвтоСерт-М round company seal; image 2 is the handwritten surname/initial and signature of the director. Extract the actual markings from their gray paper backgrounds, preserving original letterforms and strokes precisely. Create one compact combined image on pure white for the 'Исполнитель' area of an act. Preserve ALL handwriting from image 2 (the handwritten surname at left, initial in middle, and signature at right), make it neutral black. Place the actual blue seal from image 1 behind the middle/right portion of this handwritten line so the handwritten signature crosses the seal, like a physically signed stamped document. Keep seal round and blue; preserve its original company name, ring lettering and exact BIN 250440010160. Do not generate a different seal, do not reinterpret or typeset the handwritten surname. No added printed names, no labels, no extra text. Remove paper gray, shadows and texture. Landscape composition about 2:1, tightly framed with small white margins, full handwriting visible, no clipping.

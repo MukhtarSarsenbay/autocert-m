@@ -138,3 +138,72 @@ class RecognitionEndpointTests(TestCase):
         response = self.upload(HTTP_X_CSRFTOKEN=self.token)
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.data['error'], 'Сервис недоступен')
+
+
+class ActSupplierDocumentTests(TestCase):
+    def generate_documents(self, username, with_stale_profile):
+        from datetime import date
+        from shutil import copytree
+        from tempfile import TemporaryDirectory
+        from zipfile import ZipFile
+        from lxml import etree
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+        from subuser.models import Profile, SubUser
+        from .models import Actus, Button
+        from .company import SUPPLIER_CONTEXT, DIRECTOR_FULL_NAME, DIRECTOR_GENITIVE
+
+        user = User.objects.create_user(username, is_staff=True, is_superuser=True)
+        employee = SubUser.objects.create_user('act-employee', creator=user, sign='')
+        if with_stale_profile:
+            Profile.objects.create(user=user, vendor='OLD COMPANY', uid='OLD BIN', iik='OLD IBAN', bik='OLD BIC')
+        button = Button.objects.create(iccid='89997090000000000000', hwname='FALCON', user=employee)
+        obj = Actus(number=1, button=button, frln='Test Customer', personUid='111111111111',
+                    personNumber='000000001', personPublic=date(2025, 1, 1), address='Customer address',
+                    carVincode='5TDDK3EH7DS276996', carMarka='TOYOTA', carYear='2013')
+        request = RequestFactory().get('/')
+        request.user = user
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            copytree(BASE_DIR / 'media/ref', root / 'media/ref')
+            def convert(source):
+                target = Path(source).with_suffix('.pdf')
+                target.write_bytes(b'%PDF-test')
+                return target
+            with override_settings(MEDIA_ROOT=root / 'media'), patch('actus.admin.BASE_DIR', root), patch('actus.admin.convert_to', side_effect=convert):
+                ActusAdminMenu(Actus, AdminSite()).save_model(request, obj, None, False)
+                obj.refresh_from_db()
+                self.assertTrue(obj.isClose)
+                for field in (obj.act, obj.contract):
+                    with ZipFile(Path(field.path).with_suffix('.docx')) as z:
+                        document = etree.fromstring(z.read('word/document.xml'))
+                        text = ''.join(document.xpath('//*[local-name()="t"]/text()'))
+                        images = [z.read(name) for name in z.namelist() if name.startswith('word/media/')]
+                        if field == obj.act:
+                            for key, value in SUPPLIER_CONTEXT.items():
+                                if key != 'vendor_frln':
+                                    self.assertIn(value, text, key)
+                            self.assertIn(DIRECTOR_GENITIVE, text)
+                            self.assertNotIn('OLD ', text)
+                            self.assertTrue((BASE_DIR / 'media/ref/act_executor_medeu.png').read_bytes() in images, 'Missing combined executor image')
+                            descriptions = document.xpath('//*[local-name()="docPr"]/@descr')
+                            self.assertTrue(any(DIRECTOR_FULL_NAME in value for value in descriptions))
+                            self.assertEqual(len(document.xpath('//*[local-name()="drawing"]')), 1)
+                        else:
+                            # The director and signatures outside the acts stay unchanged.
+                            from .admin import DIRECTOR_FULL_NAME as previous_director
+                            self.assertIn(previous_director, text)
+                            self.assertNotIn(DIRECTOR_FULL_NAME, text)
+                            self.assertFalse((BASE_DIR / 'media/ref/act_executor_medeu.png').read_bytes() in images, 'Act image must not appear in contracts')
+                    if field == obj.act or username != 'qaztehna':
+                        self.assertIn('Test Customer', text)
+                        self.assertIn('111111111111', text)
+                    else:
+                        self.assertIn('190840008556', text)
+                        self.assertIn('KZ2294804KZT22031696', text)
+
+    def test_empty_administrator_profile_uses_company_requisites(self):
+        self.generate_documents('another-admin', False)
+
+    def test_qaz_contract_keeps_customer_and_director(self):
+        self.generate_documents('qaztehna', True)

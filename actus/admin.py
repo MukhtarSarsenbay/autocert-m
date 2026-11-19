@@ -59,6 +59,9 @@ month_to_string = {
 	12: "декабря"
 }
 
+from .company import SUPPLIER_CONTEXT
+
+# Existing contract signer; the requested director change applies only to acts.
 DIRECTOR_FULL_NAME = "Сайдхакимов Бахтияр Абдухамидович"
 
 
@@ -324,22 +327,9 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		model["day"] = now.day
 		model["month"] = month_to_string.get(now.month)
 		model["year"] = now.year
-		company_user = obj.creator.creator
-		if not company_user and isinstance(request.user, User):
-			company_user = request.user
-		if not company_user:
-			raise ValueError("У создателя акта не указан главный пользователь.")
-		profile, _ = Profile.objects.get_or_create(user=company_user)
-		model["vendor_phone"] = profile.phone
-		model["vendor"] = profile.vendor
-		model["vendor_address"] = profile.address
-		model["vendor_email"] = company_user.email
-		model["vendor_iik"] = profile.iik
-		model["vendor_uid"] = profile.uid
-		model["vendor_fil"] = profile.fil
-		model["vendor_bik"] = profile.bik
-		model["vendor_frln"] = DIRECTOR_FULL_NAME
-		
+		# The supplier is Автосерт-М regardless of which administrator creates the act.
+		model.update(SUPPLIER_CONTEXT)
+
 		#model["personPublic"] = model["personPublic"].strftime("%d.%m.%Y")
 		model = {**model, **obj.button.__dict__}
 		if model.get("personPublic"):
@@ -363,7 +353,7 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 		else:
 			act_contract = DocxTemplate(BASE_DIR / f"media/ref/act_contract.docx")
 
-		act_contract.render(model)
+		act_contract.render({**model, "vendor_frln": DIRECTOR_FULL_NAME})
 		act_contract.save(contract_path)
 		contract_pdf_path = convert_to(contract_path)
 
