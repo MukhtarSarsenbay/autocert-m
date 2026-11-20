@@ -370,6 +370,8 @@ class ActusAdminMenu(ModelAdmin, ExportActionModelAdmin):
 
 @admin.register(ActusPending)
 class ActusReportMenu(ModelAdmin, ExportActionModelAdmin):
+	Media = ActusAdminMenu.Media
+
 	list_display = ("get_number", "get_button", "frln", "carVincode","get_marka", "get_date", "isClose", "isRegistred", "isCalled", "creator")
 	list_filter_submit = True  # Submit button at the bottom of the filter
 

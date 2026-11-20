@@ -76,21 +76,31 @@ function decodeVIN(vin) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    var rows = document.querySelectorAll('#result_list tbody tr');
-    rows.forEach(function(row) {
-        var columnValueRegister = row.querySelector('.field-isRegistred').innerText; // замените '.your-column-class' на класс вашего столбца
-    	var columnValueCall = row.querySelector('.field-isCalled').innerText; // замените '.your-column-class' на класс вашего столбца
-        if (columnValueRegister.length == 10) {
-        	row.querySelector(".action-checkbox").style.backgroundColor = "rgb(247, 231, 121)"
-            //row.style.color = 'rgb(119, 106, 0)';
-        }
-    	if (columnValueCall.length == 10) {
-        //row.style.color = 'rgb(0, 128, 0)';
-        row.querySelector(".action-checkbox").style.backgroundColor = "rgb(179, 255, 179)"
-        }
+function hasStatusDate(value) {
+    const text = String(value || '').trim();
+    const local = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(text);
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (!local && !iso) return false;
+    const year = Number(local ? local[3] : iso[1]);
+    const month = Number(local ? local[2] : iso[2]);
+    const day = Number(local ? local[1] : iso[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1
+        && date.getUTCDate() === day;
+}
+
+function updateEvakStatusColors() {
+    document.querySelectorAll('#result_list tbody tr').forEach(row => {
+        const cell = row.querySelector('.action-checkbox');
+        if (!cell) return;
+        const called = hasStatusDate(row.querySelector('.field-isCalled')?.textContent);
+        const registered = hasStatusDate(row.querySelector('.field-isRegistred')?.textContent);
+        cell.classList.toggle('actus-status-called', called);
+        cell.classList.toggle('actus-status-registered', !called && registered);
     });
-});
+}
+
+document.addEventListener('DOMContentLoaded', updateEvakStatusColors);
 
 
 function setRecognitionStatus(input, message, isError) {

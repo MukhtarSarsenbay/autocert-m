@@ -120,4 +120,10 @@ jobs:
             fi
             docker compose ps
 
+            evak_container_id="$(docker compose ps -q evak-sync)"
+            if [ -z "$evak_container_id" ] || [ "$(docker inspect --format '{{.State.Running}}' "$evak_container_id")" != "true" ]; then
+              echo "EVAK background synchronization is not running"
+              exit 1
+            fi
+
             docker compose exec -T web python manage.py shell -c "from django.conf import settings; print(f'Runtime cookies: {settings.CSRF_COOKIE_NAME}, {settings.SESSION_COOKIE_NAME}')"

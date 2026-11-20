@@ -57,6 +57,12 @@ SESSION_COOKIE_SECURE = env_bool('DJANGO_SESSION_COOKIE_SECURE', False)
 PDF_CONVERTER_URL = os.getenv('PDF_CONVERTER_URL', 'http://converter:3000').rstrip('/')
 PDF_CONVERTER_TIMEOUT = int(os.getenv('PDF_CONVERTER_TIMEOUT', '120'))
 
+EVAK_STATUS_URL = os.getenv('EVAK_STATUS_URL', 'https://evak.online/search_reg.php')
+EVAK_SYNC_INTERVAL = int(os.getenv('EVAK_SYNC_INTERVAL', '300'))
+EVAK_LOOKBACK_DAYS = int(os.getenv('EVAK_LOOKBACK_DAYS', '30'))
+EVAK_CONNECT_TIMEOUT = int(os.getenv('EVAK_CONNECT_TIMEOUT', '5'))
+EVAK_READ_TIMEOUT = int(os.getenv('EVAK_READ_TIMEOUT', '20'))
+
 DOCUMENT_READER_ID_URL = os.getenv('DOCUMENT_READER_ID_URL', 'https://cms.labauto.kz/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectID').strip()
 DOCUMENT_READER_VIN_URL = os.getenv('DOCUMENT_READER_VIN_URL', 'https://cms.labauto.kz/dev/f4ac48ee-e171-45ca-be84-b1c16efbe474/detectVIN').strip()
 DOCUMENT_READER_CONNECT_TIMEOUT = int(os.getenv('DOCUMENT_READER_CONNECT_TIMEOUT', '5'))

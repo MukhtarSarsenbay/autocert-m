@@ -264,3 +264,37 @@ docker compose up -d --force-recreate web
 
 CI also runs the `actus` recognition tests. Unit tests mock the upstream reader;
 verifying OCR accuracy requires uploading a real document after deployment.
+
+## EVAK registration and call status
+
+`docker compose up -d --build` also starts `evak-sync`. It waits for the web
+service and database migrations, then checks acts created in the last 30 days.
+Checks start every 300 seconds; if a scan takes longer, the next starts after it
+finishes. Acts with both dates already filled are skipped. Failed requests and
+empty responses preserve existing dates and are retried in subsequent scans.
+
+On the acts list, the checkbox cell becomes yellow for a registration date and
+green for a call date. Green takes priority. Refresh the page to see new dates
+and colors. There is no next-day timer: green requires a call date from EVAK.
+
+Check the worker after deployment:
+
+```bash
+docker compose ps evak-sync
+docker compose logs --tail=50 evak-sync
+```
+
+Logs report `checked`, `updated`, `failed`, and `skipped` for each scan. A running
+container alone does not prove successful EVAK requests; check these counts.
+To run a scan manually:
+
+```bash
+docker compose exec web python manage.py sync_evak
+```
+
+Optional `.env` settings: `EVAK_LOOKBACK_DAYS=30`, `EVAK_SYNC_INTERVAL=300`,
+`EVAK_CONNECT_TIMEOUT=5`, `EVAK_READ_TIMEOUT=20`, and
+`EVAK_STATUS_URL=https://evak.online/search_reg.php`. After changing them, run
+`docker compose up -d web evak-sync`. Remove any old cron entry that invokes
+`registred.py` when enabling the worker, to avoid duplicate scans. The legacy
+script remains available as a single-pass wrapper for the same command.

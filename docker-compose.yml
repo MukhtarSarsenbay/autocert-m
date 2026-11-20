@@ -41,7 +41,7 @@ services:
         condition: service_healthy
       converter:
         condition: service_healthy
-    environment:
+    environment: &app_environment
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-docker-dev-secret-change-me}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
@@ -66,6 +66,11 @@ services:
       DOCUMENT_READER_MAX_FILE_SIZE: ${DOCUMENT_READER_MAX_FILE_SIZE:-15728640}
       CORS_ALLOW_ALL_ORIGINS: ${CORS_ALLOW_ALL_ORIGINS:-0}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-1}
+      EVAK_STATUS_URL: ${EVAK_STATUS_URL:-https://evak.online/search_reg.php}
+      EVAK_SYNC_INTERVAL: ${EVAK_SYNC_INTERVAL:-300}
+      EVAK_LOOKBACK_DAYS: ${EVAK_LOOKBACK_DAYS:-30}
+      EVAK_CONNECT_TIMEOUT: ${EVAK_CONNECT_TIMEOUT:-5}
+      EVAK_READ_TIMEOUT: ${EVAK_READ_TIMEOUT:-20}
     expose:
       - "8000"
     volumes:
@@ -77,6 +82,16 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
+
+  evak-sync:
+    build: .
+    command: ["python", "manage.py", "sync_evak", "--loop"]
+    init: true
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment: *app_environment
 
   proxy:
     image: nginx:1.27-alpine
