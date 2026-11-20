@@ -104,6 +104,39 @@ function setRecognitionStatus(input, message, isError) {
     }
     status.textContent = message;
     status.style.color = isError ? '#b91c1c' : '#475569';
+    const column = document.getElementById(input.id + '_document_preview')
+        ?.closest('.actus-document-preview-column');
+    if (column) column.appendChild(status);
+}
+
+function getDocumentPreview(input, kind) {
+    const previewId = input.id + '_document_preview';
+    let preview = document.getElementById(previewId);
+    if (preview) return preview;
+    preview = document.createElement('div');
+    preview.id = previewId;
+
+    // Keep whole Django rows together, including labels, errors and date widgets.
+    const names = ['frln', 'personUid', 'personNumber', 'personPublic', 'personPhone', 'address'];
+    const rows = names.map(name => document.getElementById('id_' + name)?.closest('.form-row'));
+    const parent = rows[0]?.parentElement;
+    if (kind === 'id' && parent && rows.every(row => row && row.parentElement === parent)) {
+        parent.classList.add('actus-document-container');
+        const layout = document.createElement('div');
+        layout.className = 'actus-document-layout';
+        const fields = document.createElement('div');
+        fields.className = 'actus-document-fields';
+        const column = document.createElement('aside');
+        column.className = 'actus-document-preview-column';
+        column.setAttribute('aria-label', 'Превью удостоверения личности');
+        parent.insertBefore(layout, rows[0]);
+        layout.append(fields, column);
+        rows.forEach(row => fields.appendChild(row));
+        column.appendChild(preview);
+    } else {
+        input.insertAdjacentElement('afterend', preview);
+    }
+    return preview;
 }
 
 function normalizeDateForInput(value) {
@@ -127,25 +160,25 @@ async function handleDocumentSelection(input, kind) {
         setRecognitionStatus(input, 'Поддерживаются только PDF и JPG', true);
         return;
     }
-    const previewId = input.id + '_document_preview';
-    let preview = document.getElementById(previewId);
-    if (!preview) {
-        preview = document.createElement('div');
-        preview.id = previewId;
-        input.insertAdjacentElement('afterend', preview);
-    }
+    const preview = getDocumentPreview(input, kind);
     if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
     const url = URL.createObjectURL(file);
     preview.dataset.objectUrl = url;
     const pdf = /pdf$/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
     const image = document.createElement(pdf ? 'embed' : 'img');
-    image.src = url;
-    image.style.cssText = 'max-width:100%;width:500px;max-height:500px;object-fit:contain;';
+    image.src = pdf ? url + '#view=FitH&navpanes=0' : url;
+    image.className = 'actus-document-preview-media';
+    if (kind !== 'id') image.style.cssText = 'max-width:100%;width:500px;max-height:500px;object-fit:contain;';
     if (pdf) {
         image.type = 'application/pdf';
-        image.height = '500';
     }
-    preview.replaceChildren(image);
+    const openLink = document.createElement('a');
+    openLink.href = url;
+    openLink.target = '_blank';
+    openLink.rel = 'noopener';
+    openLink.className = 'actus-document-open';
+    openLink.textContent = 'Открыть документ в полном размере';
+    preview.replaceChildren(openLink, image);
     const fieldIds = kind === 'id'
         ? ['id_frln', 'id_personUid', 'id_personNumber', 'id_personPublic', 'id_address']
         : ['id_carVincode', 'id_carMarka', 'id_carYear'];

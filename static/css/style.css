@@ -1,1 +1,62 @@
 /* Project-level admin overrides are loaded from Django settings. */
+
+.actus-document-container {
+    container: actus-client / inline-size;
+}
+
+.actus-document-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+}
+
+.actus-document-fields,
+.actus-document-preview-column {
+    min-width: 0;
+}
+
+.actus-document-preview-column {
+    padding-bottom: 16px;
+}
+
+.actus-document-fields input,
+.actus-document-fields textarea,
+.actus-document-fields select {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.actus-document-preview-media {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    border: 0;
+}
+
+.actus-document-preview-column img {
+    height: auto;
+}
+
+.actus-document-preview-column embed {
+    height: clamp(500px, 75vh, 850px);
+}
+
+.actus-document-open {
+    display: inline-block;
+    margin-bottom: 12px;
+    text-decoration: underline;
+}
+
+/* Use the available form width, accounting for the admin sidebar. */
+@container actus-client (min-width: 900px) {
+    .actus-document-layout {
+        grid-template-columns: minmax(280px, 0.85fr) minmax(560px, 1.35fr);
+    }
+
+    .actus-document-preview-column {
+        position: sticky;
+        top: 16px;
+    }
+}
